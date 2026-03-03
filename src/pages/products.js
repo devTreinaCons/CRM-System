@@ -124,7 +124,8 @@ export async function renderProducts(container) {
         </div>
         <div style="margin-top:10px;display:flex;gap:6px">
           <button class="btn btn-ghost btn-sm btn-edit-product" data-id="${p.id}"><span class="material-symbols-outlined" style="font-size: inherit; vertical-align: middle;">edit</span> Editar</button>
-          <button class="btn btn-secondary btn-sm btn-find-leads" data-id="${p.id}"><span class="material-symbols-outlined" style="font-size: inherit; vertical-align: middle;">psychology</span> Encontrar Leads</button>
+          <button class="btn btn-ghost btn-sm btn-find-leads" data-id="${p.id}"><span class="material-symbols-outlined" style="font-size: inherit; vertical-align: middle;">psychology</span> Leads</button>
+          <button class="btn btn-ghost btn-sm btn-delete-product" data-id="${p.id}" style="margin-left:auto;color:var(--accent-danger)" title="Excluir produto"><span class="material-symbols-outlined" style="font-size: inherit; vertical-align: middle;">delete</span></button>
         </div>
       </div>
     `).join('');
@@ -145,7 +146,15 @@ export async function renderProducts(container) {
         if (product) showLeadDiscovery(product, products);
       });
     });
-  }
+
+    grid.querySelectorAll('.btn-delete-product').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const product = products.find(p => p.id === btn.dataset.id);
+        if (product) showDeleteProductConfirm(product, () => renderProducts(container));
+      });
+    });
+  } // end updateGrid
 
   searchInput.addEventListener('input', updateGrid);
   categoryFilter.addEventListener('change', updateGrid);
@@ -311,6 +320,47 @@ function showProductForm(product, onSave) {
 
     closeModal();
     if (onSave) onSave();
+  });
+}
+
+async function showDeleteProductConfirm(product, onDelete) {
+  const funnelCount = (product.funnels || []).length;
+  const { data: purchases } = await supabase
+    .from('purchases')
+    .select('id', { count: 'exact', head: true })
+    .eq('product_id', product.id);
+
+  const content = document.createElement('div');
+  content.innerHTML = `
+    <p>Tem certeza que deseja excluir o produto <strong>${product.name}</strong>?</p>
+    ${funnelCount > 0 ? `<p style="margin-top:10px;color:var(--accent-warning);font-size:var(--font-size-xs)"><span class="material-symbols-outlined" style="font-size:inherit;vertical-align:middle">warning</span> Este produto possui <strong>${funnelCount} funil(is)</strong> vinculado(s). Os funis associados também serão desvinculados.</p>` : ''}
+    <p style="margin-top:8px;color:var(--accent-danger);font-size:var(--font-size-xs)">Esta ação não pode ser desfeita.</p>
+  `;
+
+  const footer = document.createElement('div');
+  footer.innerHTML = `
+    <button class="btn btn-secondary" id="del-prod-cancel">Cancelar</button>
+    <button class="btn btn-danger" id="del-prod-confirm">Excluir Produto</button>
+  `;
+
+  const { modal } = openModal({ title: 'Excluir Produto', content, footer });
+
+  modal.querySelector('#del-prod-cancel').addEventListener('click', closeModal);
+  modal.querySelector('#del-prod-confirm').addEventListener('click', async () => {
+    const btn = modal.querySelector('#del-prod-confirm');
+    btn.disabled = true;
+    btn.innerHTML = '<div class="spinner btn-spinner"></div> Excluindo...';
+
+    const { error } = await supabase.from('products').delete().eq('id', product.id);
+
+    if (error) {
+      showToast('Erro ao excluir produto: ' + error.message, 'error');
+      closeModal();
+    } else {
+      showToast('Produto excluído com sucesso', 'success');
+      closeModal();
+      if (onDelete) onDelete();
+    }
   });
 }
 
