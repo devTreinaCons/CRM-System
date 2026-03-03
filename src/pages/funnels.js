@@ -145,7 +145,7 @@ export async function renderFunnels(container) {
       </div>
     `;
 
-    setupDragAndDrop(funnelId, kanbanContainer);
+    setupDragAndDrop(funnelId, kanbanContainer, () => loadKanban(activeFunnelId));
 
     // Click card to go to contact detail
     kanbanContainer.querySelectorAll('.kanban-card').forEach(card => {
@@ -400,7 +400,7 @@ export async function renderFunnels(container) {
   loadKanban(funnels[0].id);
 }
 
-function setupDragAndDrop(funnelId, kanbanContainer) {
+function setupDragAndDrop(funnelId, kanbanContainer, reloadCallback) {
   const cards = kanbanContainer.querySelectorAll('.kanban-card');
   const columns = kanbanContainer.querySelectorAll('.kanban-column-body');
 
@@ -499,9 +499,8 @@ function setupDragAndDrop(funnelId, kanbanContainer) {
 
         showToast('Contato movido! <span class="material-symbols-outlined" style="font-size: inherit; vertical-align: middle;">sync</span>', 'success');
 
-        // Reload kanban
-        const parentContainer = document.getElementById('page-content');
-        renderFunnels(parentContainer);
+        // Reload only the current kanban, keeping the active funnel
+        if (reloadCallback) reloadCallback();
 
       } catch (err) {
         console.error('Error in drop handler:', err);
