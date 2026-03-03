@@ -116,12 +116,18 @@ async function renderCompanyDetail(container, companyId) {
     { data: company },
     { data: contactCompanies },
     { data: purchases },
-    { data: opportunities }
+    { data: opportunities },
+    { data: tasks },
+    { data: notes },
+    { data: profiles }
   ] = await Promise.all([
     supabase.from('companies').select('*').eq('id', companyId).single(),
     supabase.from('contact_companies').select('*, contacts(*)').eq('company_id', companyId),
     supabase.from('purchases').select('*, products(name, icon), purchase_participants(contact_id)').eq('company_id', companyId).order('purchase_date', { ascending: false }),
-    supabase.from('contact_funnel').select('*, contacts(name), funnels(name, products(name, icon, color)), funnel_stages:current_stage_id(name, color, position)').eq('company_id', companyId).not('status', 'in', '("won","lost")')
+    supabase.from('contact_funnel').select('*, contacts(name), funnels(name, products(name, icon, color)), funnel_stages:current_stage_id(name, color, position)').eq('company_id', companyId).not('status', 'in', '("won","lost")'),
+    supabase.from('tasks').select('*, profiles:assigned_to(name)').eq('company_id', companyId).order('due_date', { ascending: true, nullsFirst: false }),
+    supabase.from('contact_notes').select('*, profiles:user_id(name)').eq('company_id', companyId).order('created_at', { ascending: false }),
+    supabase.from('profiles').select('id, name').order('name')
   ]);
 
   const employees = (contactCompanies || []).map(cc => ({ ...cc.contacts, position: cc.position || cc.contacts.position }));
@@ -306,6 +312,29 @@ async function renderCompanyDetail(container, companyId) {
               </table>
             </div>
           </div>
+
+          <!-- Tasks & Notes Panel -->
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:24px; margin-top:24px">
+            <div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                <h3 style="font-size:1.1rem;font-weight:700;color:var(--text-main);"><span class="material-symbols-outlined" style="vertical-align:middle;margin-right:4px">check_circle</span> Atividades</h3>
+                <button class="btn btn-primary btn-xs" id="btn-add-task-overview"><span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">add</span> Tarefa</button>
+              </div>
+              <div class="card" style="margin-bottom:20px; padding: 16px;">
+                ${renderTasksTab(tasks || [], companyId, true)}
+              </div>
+            </div>
+
+            <div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                <h3 style="font-size:1.1rem;font-weight:700;color:var(--text-main);"><span class="material-symbols-outlined" style="vertical-align:middle;margin-right:4px">notes</span> Anotações</h3>
+                <button class="btn btn-secondary btn-xs" id="btn-add-note-overview"><span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">add</span> Nota</button>
+              </div>
+              <div class="card" style="padding: 16px;">
+                ${renderNotesTab(notes || [], companyId, true)}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -431,6 +460,20 @@ async function renderCompanyDetail(container, companyId) {
       });
     });
   });
+
+  // Task & Note Handlers
+  setupTaskHandlers(companyId, container, profiles);
+  setupNoteHandlers(companyId, container, profiles);
+
+  const addTaskBtn = document.getElementById('btn-add-task-overview');
+  if (addTaskBtn) {
+    addTaskBtn.addEventListener('click', () => showTaskForm(companyId, profiles, () => renderCompanyDetail(container, companyId)));
+  }
+
+  const addNoteBtn = document.getElementById('btn-add-note-overview');
+  if (addNoteBtn) {
+    addNoteBtn.addEventListener('click', () => showNoteForm(companyId, () => renderCompanyDetail(container, companyId)));
+  }
 }
 
 async function showB2BPurchaseForm(company, onSave) {
@@ -771,4 +814,205 @@ function getInitials(name) {
   const parts = name.split(' ');
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
   return name.substring(0, 2).toUpperCase();
+}
+
+function renderTasksTab(tasks, companyId, isOverview = false) {
+  return `
+    ${tasks.length === 0 ? '<div class="empty-state-simple">Nenhuma tarefa aberta.</div>' :
+      tasks.slice(0, isOverview ? 5 : 100).map(t => {
+        const isOverdue = t.due_date && new Date(t.due_date) < new Date() && t.status !== 'completed';
+        const isToday = t.due_date && new Date(t.due_date).toDateString() === new Date().toDateString();
+        return `
+          <div class="task-row" style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border-light)">
+            <input type="checkbox" class="task-check" data-id="${t.id}" ${t.status === 'completed' ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer">
+            <div style="flex:1">
+              <div style="font-size:var(--font-size-sm);font-weight:600;${t.status === 'completed' ? 'text-decoration:line-through;color:var(--text-muted)' : ''}">${t.title}</div>
+              <div style="font-size:10px;color:var(--text-muted);display:flex;align-items:center;gap:8px;margin-top:2px">
+                <span style="color:${t.priority === 'urgent' ? 'var(--accent-danger)' : t.priority === 'high' ? 'var(--accent-warning)' : 'var(--text-muted)'}">${t.priority}</span>
+                ${t.due_date ? `<span class="${isOverdue ? 'text-danger' : isToday ? 'text-warning' : ''}">${formatDate(t.due_date)}</span>` : ''}
+                ${t.profiles?.name ? `<span>• ${t.profiles.name}</span>` : ''}
+              </div>
+            </div>
+            <button class="btn btn-ghost btn-xs btn-delete-task" data-id="${t.id}" title="Excluir Tarefa">
+              <span class="material-symbols-outlined" style="font-size:16px;color:var(--accent-danger)">delete</span>
+            </button>
+          </div>
+        `;
+      }).join('')}
+  `;
+}
+
+function renderNotesTab(notes, companyId, isOverview = false) {
+  const noteIcons = {
+    call: 'call',
+    meeting: 'groups',
+    email: 'email',
+    whatsapp: 'chat',
+    internal: 'description'
+  };
+
+  return `
+    ${notes.length === 0 ? '<div class="empty-state-simple">Nenhuma anotação registrada.</div>' :
+      notes.slice(0, isOverview ? 5 : 100).map(n => `
+        <div class="note-row" style="padding:10px 0;border-bottom:1px solid var(--border-light);position:relative">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+            <div style="display:flex;align-items:center;gap:6px">
+              <span class="material-symbols-outlined" style="font-size:14px;color:var(--text-muted)">${noteIcons[n.type] || 'description'}</span>
+              <span style="font-size:10px;font-weight:600;color:var(--text-muted)">${n.profiles?.name || 'Sistema'} • ${formatDate(n.created_at)}</span>
+            </div>
+            <button class="btn btn-ghost btn-xs btn-delete-note" data-id="${n.id}" title="Excluir Nota">
+              <span class="material-symbols-outlined" style="font-size:16px;color:var(--accent-danger)">delete</span>
+            </button>
+          </div>
+          <div style="font-size:var(--font-size-sm);white-space:pre-wrap;color:var(--text-secondary)">${n.content}</div>
+        </div>
+      `).join('')}
+  `;
+}
+
+function setupTaskHandlers(companyId, container, profiles) {
+  document.querySelectorAll('.task-check').forEach(check => {
+    check.addEventListener('change', async () => {
+      const id = check.dataset.id;
+      const status = check.checked ? 'completed' : 'pending';
+      await supabase.from('tasks').update({ status }).eq('id', id);
+      renderCompanyDetail(container, companyId);
+    });
+  });
+
+  document.querySelectorAll('.btn-delete-task').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      if (confirm('Deseja excluir esta tarefa?')) {
+        await supabase.from('tasks').delete().eq('id', id);
+        renderCompanyDetail(container, companyId);
+      }
+    });
+  });
+}
+
+function setupNoteHandlers(companyId, container, profiles) {
+  document.querySelectorAll('.btn-delete-note').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      if (confirm('Deseja excluir esta nota?')) {
+        await supabase.from('contact_notes').delete().eq('id', id);
+        renderCompanyDetail(container, companyId);
+      }
+    });
+  });
+}
+
+async function showTaskForm(companyId, profiles, onSave) {
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const content = document.createElement('div');
+  content.innerHTML = `
+    <div class="form-group">
+      <label class="form-label">Título da Tarefa *</label>
+      <input class="form-input" id="task-title" placeholder="O que precisa ser feito?" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Descrição</label>
+      <textarea class="form-textarea" id="task-description" rows="2"></textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Prioridade</label>
+        <select class="form-select" id="task-priority">
+          <option value="normal">Normal</option>
+          <option value="high">Alta</option>
+          <option value="urgent">Urgente</option>
+          <option value="low">Baixa</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Data Limite</label>
+        <input class="form-input" id="task-due" type="date" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Responsável</label>
+      <select class="form-select" id="task-assignee">
+        ${(profiles || []).map(p => `<option value="${p.id}" ${p.id === user?.id ? 'selected' : ''}>${p.name}</option>`).join('')}
+      </select>
+    </div>
+  `;
+
+  const footer = document.createElement('div');
+  footer.innerHTML = `<button class="btn btn-secondary" id="task-cancel">Cancelar</button><button class="btn btn-primary" id="task-save">Salvar Tarefa</button>`;
+
+  const { modal } = openModal({ title: 'Nova Tarefa', content, footer });
+
+  modal.querySelector('#task-cancel').addEventListener('click', closeModal);
+  modal.querySelector('#task-save').addEventListener('click', async () => {
+    const title = modal.querySelector('#task-title').value.trim();
+    if (!title) { showToast('Informe o título', 'warning'); return; }
+
+    const { error } = await supabase.from('tasks').insert({
+      company_id: companyId,
+      title,
+      description: modal.querySelector('#task-description').value.trim(),
+      priority: modal.querySelector('#task-priority').value,
+      due_date: modal.querySelector('#task-due').value || null,
+      assigned_to: modal.querySelector('#task-assignee').value,
+      user_id: user?.id
+    });
+
+    if (error) {
+      showToast('Erro ao criar tarefa', 'error');
+    } else {
+      showToast('Tarefa criada!', 'success');
+      closeModal();
+      if (onSave) onSave();
+    }
+  });
+}
+
+function showNoteForm(companyId, onSave) {
+  const content = document.createElement('div');
+  content.innerHTML = `
+    <div class="form-group">
+      <label class="form-label">Tipo de Contato</label>
+      <select class="form-select" id="note-type">
+        <option value="internal">Anotação Interna</option>
+        <option value="call">Chamada</option>
+        <option value="meeting">Reunião</option>
+        <option value="email">Email</option>
+        <option value="whatsapp">WhatsApp</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Conteúdo da Nota *</label>
+      <textarea class="form-textarea" id="note-content" rows="4" placeholder="Registre o que foi conversado ou observado..."></textarea>
+    </div>
+  `;
+
+  const footer = document.createElement('div');
+  footer.innerHTML = `<button class="btn btn-secondary" id="note-cancel">Cancelar</button><button class="btn btn-primary" id="note-save">Salvar Nota</button>`;
+
+  const { modal } = openModal({ title: 'Nova Anotação', content, footer });
+
+  modal.querySelector('#note-cancel').addEventListener('click', closeModal);
+  modal.querySelector('#note-save').addEventListener('click', async () => {
+    const contentText = modal.querySelector('#note-content').value.trim();
+    if (!contentText) { showToast('Informe o conteúdo', 'warning'); return; }
+
+    const { data: { user } } = await supabase.auth.getUser();
+
+    const { error } = await supabase.from('contact_notes').insert({
+      company_id: companyId,
+      content: contentText,
+      type: modal.querySelector('#note-type').value,
+      user_id: user?.id
+    });
+
+    if (error) {
+      showToast('Erro ao criar nota', 'error');
+    } else {
+      showToast('Anotação salva!', 'success');
+      closeModal();
+      if (onSave) onSave();
+    }
+  });
 }
