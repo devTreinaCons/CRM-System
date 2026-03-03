@@ -63,6 +63,9 @@ export async function renderContacts(container, params) {
           <select class="form-select" id="contact-source-filter" style="width:auto;min-width:140px">
             <option value="">Fonte: Todas</option>
             <option value="indicação">Indicação</option>
+            <option value="prospecção">Prospecção</option>
+            <option value="instagram">Instagram</option>
+            <option value="facebook">Facebook</option>
             <option value="linkedin">LinkedIn</option>
             <option value="site">Site</option>
             <option value="evento">Evento</option>
@@ -884,6 +887,9 @@ export async function showContactForm(contact, onSave) {
         <label class="form-label">Fonte</label>
         <select class="form-select" id="cf-source">
           <option value="manual" ${contact?.source === 'manual' ? 'selected' : ''}>Manual</option>
+          <option value="prospecção" ${contact?.source === 'prospecção' ? 'selected' : ''}>Prospecção</option>
+          <option value="instagram" ${contact?.source === 'instagram' ? 'selected' : ''}>Instagram</option>
+          <option value="facebook" ${contact?.source === 'facebook' ? 'selected' : ''}>Facebook</option>
           <option value="indicação" ${contact?.source === 'indicação' ? 'selected' : ''}>Indicação</option>
           <option value="linkedin" ${contact?.source === 'linkedin' ? 'selected' : ''}>LinkedIn</option>
           <option value="site" ${contact?.source === 'site' ? 'selected' : ''}>Site</option>
@@ -914,6 +920,14 @@ export async function showContactForm(contact, onSave) {
     footer.innerHTML = `<button class="btn btn-secondary" id="cf-cancel">Cancelar</button><button class="btn btn-primary" id="cf-save">${isEdit ? 'Salvar' : 'Criar Contato'}</button>`;
 
     const { modal } = openModal({ title: isEdit ? 'Editar Contato' : 'Novo Contato', content, footer });
+
+    // Phone formatting
+    const phoneInput = modal.querySelector('#cf-phone');
+    if (phoneInput) {
+      phoneInput.addEventListener('input', (e) => {
+        e.target.value = formatPhone(e.target.value);
+      });
+    }
 
     // Manage company links in the form
     const selectedCompanies = (existingCompanies || []).map(cc => ({ id: cc.company_id, name: cc.companies?.name, position: cc.position }));
@@ -1034,3 +1048,20 @@ function formatDate(d) { return new Date(d).toLocaleDateString('pt-BR', { day: '
 function formatDateTime(d) { return new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); }
 function formatCurrency(v) { return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 0 }).format(v); }
 function getInitials(name) { return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase(); }
+
+function formatPhone(value) {
+  if (!value) return "";
+  value = value.replace(/\D/g, "");
+  if (value.length > 11) value = value.slice(0, 11);
+
+  if (value.length > 10) {
+    return `(${value.slice(0, 2)}) ${value.slice(2, 7)}-${value.slice(7)}`;
+  } else if (value.length > 6) {
+    return `(${value.slice(0, 2)}) ${value.slice(2, 6)}-${value.slice(6)}`;
+  } else if (value.length > 2) {
+    return `(${value.slice(0, 2)}) ${value.slice(2)}`;
+  } else if (value.length > 0) {
+    return `(${value}`;
+  }
+  return value;
+}
