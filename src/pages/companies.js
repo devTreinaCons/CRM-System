@@ -121,7 +121,7 @@ async function renderCompanyDetail(container, companyId) {
     supabase.from('companies').select('*').eq('id', companyId).single(),
     supabase.from('contact_companies').select('*, contacts(*)').eq('company_id', companyId),
     supabase.from('purchases').select('*, products(name, icon), purchase_participants(contact_id)').eq('company_id', companyId).order('purchase_date', { ascending: false }),
-    supabase.from('contact_funnel').select('*, funnels(name, products(name, icon, color)), funnel_stages:current_stage_id(name, color, position)').eq('company_id', companyId)
+    supabase.from('contact_funnel').select('*, contacts(name), funnels(name, products(name, icon, color)), funnel_stages:current_stage_id(name, color, position)').eq('company_id', companyId).not('status', 'in', '("won","lost")')
   ]);
 
   const employees = (contactCompanies || []).map(cc => ({ ...cc.contacts, position: cc.position || cc.contacts.position }));
@@ -171,7 +171,8 @@ async function renderCompanyDetail(container, companyId) {
                     <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
                       <span class="material-symbols-outlined" style="color:${opp.funnels?.products?.color || 'var(--accent-primary)'};background:var(--bg-input);padding:8px;border-radius:var(--radius-sm)">${opp.funnels?.products?.icon || 'inventory_2'}</span>
                       <div style="flex:1">
-                        <div style="font-weight:600;font-size:var(--font-size-sm)">${opp.funnels?.name}</div>
+                        <div style="font-weight:700;font-size:var(--font-size-sm)">${opp.funnels?.products?.name || opp.funnels?.name}</div>
+                        ${opp.contacts?.name ? `<div style="font-size:10px;color:var(--accent-primary);font-weight:600;margin-bottom:2px">${opp.contacts.name}</div>` : ''}
                         <div style="font-size:var(--font-size-xs);color:var(--text-muted)">Etapa: <span style="color:${opp.funnel_stages?.color};font-weight:600">${opp.funnel_stages?.name}</span></div>
                         <div style="font-size:10px;color:var(--text-muted);margin-top:2px">Desde: ${formatDate(opp.entered_at)}</div>
                       </div>

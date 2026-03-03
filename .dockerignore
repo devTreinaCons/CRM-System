@@ -1,0 +1,27 @@
+# Node deps — reinstalled inside Docker
+node_modules
+npm-debug.log*
+
+# Build output — rebuilt inside Docker
+dist
+dist-ssr
+
+# Local env files — secrets injected as build args
+.env
+.env.*
+*.env
+
+# Git & CI
+.git
+.github
+.gitignore
+
+# Editor
+.vscode
+.idea
+*.sw?
+*.suo
+
+# Misc
+*.log
+.DS_Store

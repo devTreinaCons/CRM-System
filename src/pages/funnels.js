@@ -376,9 +376,11 @@ export async function renderFunnels(container) {
 
       if (type === 'contact') {
         payload.contact_id = contactId;
-        payload.company_id = contactCompanyId || null;
+        // company_id must be null when contact_id is set (DB constraint: funnel_entity_check)
+        payload.company_id = null;
       } else {
         payload.company_id = companyId;
+        payload.contact_id = null;
       }
 
       const { error } = await supabase.from('contact_funnel').insert(payload);
