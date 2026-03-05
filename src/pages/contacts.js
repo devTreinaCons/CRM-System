@@ -143,7 +143,7 @@ export async function renderContacts(container, params) {
         ? c.contact_companies.map(cc => cc.companies?.name).filter(Boolean).join(', ')
         : (c.company || '—')}
         </td>
-        <td>${c.phone || '—'}</td>
+        <td>${formatPhone(c.phone) || '—'}</td>
         <td><span class="badge badge-neutral">${c.source || '—'}</span></td>
         <td>
           ${(c.contact_funnel || []).map(cf =>
@@ -316,7 +316,7 @@ export async function renderContactDetail(container, contactId) {
             <h4 class="card-title" style="margin-bottom:12px"><span class="material-symbols-outlined" style="font-size: inherit; vertical-align: middle;">push_pin</span> Informações</h4>
             <ul class="contact-info-list">
               ${contact.email ? `<li class="contact-info-item"><span class="info-icon"><span class="material-symbols-outlined" style="font-size: inherit; vertical-align: middle;">mail</span></span>${contact.email}</li>` : ''}
-              ${contact.phone ? `<li class="contact-info-item"><span class="info-icon"><span class="material-symbols-outlined" style="font-size: inherit; vertical-align: middle;">smartphone</span></span>${contact.phone}</li>` : ''}
+              ${contact.phone ? `<li class="contact-info-item"><span class="info-icon"><span class="material-symbols-outlined" style="font-size: inherit; vertical-align: middle;">smartphone</span></span>${formatPhone(contact.phone)}</li>` : ''}
               ${contactCompanies.length > 0 ? contactCompanies.map(cc => `
                 <li class="contact-info-item">
                   <span class="info-icon"><span class="material-symbols-outlined" style="font-size: inherit; vertical-align: middle;">business</span></span>
@@ -854,7 +854,7 @@ export async function showContactForm(contact, onSave) {
       </div>
       <div class="form-group">
         <label class="form-label">Telefone</label>
-        <input class="form-input" id="cf-phone" value="${contact?.phone || ''}" placeholder="(11) 99999-9999" />
+        <input class="form-input" id="cf-phone" value="${formatPhone(contact?.phone) || ''}" placeholder="(11) 99999-9999" />
       </div>
     </div>
     <div class="form-group">
@@ -981,8 +981,9 @@ export async function showContactForm(contact, onSave) {
       if (!name) { showToast('Informe o nome do contato', 'warning'); return; }
 
       const phone = modal.querySelector('#cf-phone').value.trim();
-      if (phone) {
-        let duplicateQuery = supabase.from('contacts').select('id, name, phone').eq('phone', phone);
+      const sanitizedPhoneValue = sanitizePhone(phone);
+      if (sanitizedPhoneValue) {
+        let duplicateQuery = supabase.from('contacts').select('id, name, phone').eq('phone', sanitizedPhoneValue);
         if (isEdit) duplicateQuery = duplicateQuery.neq('id', contact.id);
         const { data: existingContact } = await duplicateQuery.maybeSingle();
         if (existingContact) {
@@ -1010,7 +1011,7 @@ export async function showContactForm(contact, onSave) {
       const data = {
         name,
         email: modal.querySelector('#cf-email').value.trim() || null,
-        phone: phone || null,
+        phone: sanitizedPhoneValue || null,
         company: primaryCompany?.name || null,
         company_id: primaryCompany?.id || null,
         position: modal.querySelector('#cf-position').value.trim() || null,
@@ -1085,4 +1086,9 @@ function formatPhone(value) {
     return `(${value}`;
   }
   return value;
+}
+
+function sanitizePhone(value) {
+  if (!value) return null;
+  return value.replace(/\D/g, "") || null;
 }
