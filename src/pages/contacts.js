@@ -980,12 +980,28 @@ export async function showContactForm(contact, onSave) {
       const name = modal.querySelector('#cf-name').value.trim();
       if (!name) { showToast('Informe o nome do contato', 'warning'); return; }
 
+      const phone = modal.querySelector('#cf-phone').value.trim();
+      if (phone) {
+        let duplicateQuery = supabase.from('contacts').select('id, name, phone').eq('phone', phone);
+        if (isEdit) duplicateQuery = duplicateQuery.neq('id', contact.id);
+        const { data: existingContact } = await duplicateQuery.maybeSingle();
+        if (existingContact) {
+          showToast(`Já existe um contato com este telefone: ${existingContact.name}`, 'warning');
+          return;
+        }
+      }
+
       // Logic to handle new company if provided as text but not in dropdown
       const companyName = modal.querySelector('#cf-company-name').value.trim();
       if (companyName) {
-        const { data: newCompany } = await supabase.from('companies').insert([{ name: companyName }]).select().single();
-        if (newCompany) {
-          selectedCompanies.push({ id: newCompany.id, name: companyName, position: modal.querySelector('#cf-position').value });
+        const { data: existingCompany } = await supabase.from('companies').select('id, name').ilike('name', companyName).maybeSingle();
+        if (existingCompany) {
+          selectedCompanies.push({ id: existingCompany.id, name: existingCompany.name, position: modal.querySelector('#cf-position').value });
+        } else {
+          const { data: newCompany } = await supabase.from('companies').insert([{ name: companyName }]).select().single();
+          if (newCompany) {
+            selectedCompanies.push({ id: newCompany.id, name: companyName, position: modal.querySelector('#cf-position').value });
+          }
         }
       }
 
@@ -994,7 +1010,7 @@ export async function showContactForm(contact, onSave) {
       const data = {
         name,
         email: modal.querySelector('#cf-email').value.trim() || null,
-        phone: modal.querySelector('#cf-phone').value.trim() || null,
+        phone: phone || null,
         company: primaryCompany?.name || null,
         company_id: primaryCompany?.id || null,
         position: modal.querySelector('#cf-position').value.trim() || null,
@@ -1012,7 +1028,12 @@ export async function showContactForm(contact, onSave) {
         await supabase.from('contacts').update(data).eq('id', contact.id);
         showToast('Contato atualizado! <span class="material-symbols-outlined" style="font-size: inherit; vertical-align: middle;">check_circle</span>', 'success');
       } else {
-        const { data: newContact } = await supabase.from('contacts').insert({ ...data, user_id: user?.id }).select().single();
+        const { data: newContact, error: insertError } = await supabase.from('contacts').insert({ ...data, user_id: user?.id }).select().single();
+        if (insertError) {
+          if (insertError.code === '23505') showToast('Já existe um contato com este telefone', 'warning');
+          else showToast('Erro ao salvar contato', 'error');
+          return;
+        }
         finalContactId = newContact?.id;
         showToast('Contato criado! ', 'success');
       }

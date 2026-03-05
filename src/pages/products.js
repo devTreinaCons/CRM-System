@@ -2,6 +2,51 @@ import { supabase } from '../supabase.js';
 import { openModal, closeModal } from '../components/modal.js';
 import { showToast } from '../components/toast.js';
 
+const STANDARD_FUNNEL_STAGES = [
+  { name: 'Lead',           position: 0, color: '#94a3b8' },
+  { name: 'Contatado',      position: 1, color: '#60a5fa' },
+  { name: 'Qualificado',    position: 2, color: '#3b82f6' },
+  { name: 'Analisando',     position: 3, color: '#f59e0b' },
+  { name: 'Negociação',     position: 4, color: '#8b5cf6' },
+  { name: 'Fechado Ganho',  position: 5, color: '#10b981' },
+  { name: 'Fechado Perdido',position: 6, color: '#ef4444' },
+];
+
+async function fixExistingFunnels() {
+  const { data: funnels } = await supabase.from('funnels').select('id');
+  if (!funnels?.length) return;
+
+  for (const funnel of funnels) {
+    const { data: stages } = await supabase.from('funnel_stages').select('*').eq('funnel_id', funnel.id).order('position');
+    if (!stages) continue;
+
+    const existingNames = stages.map(s => s.name);
+    const missingStages = STANDARD_FUNNEL_STAGES.filter(s => !existingNames.includes(s.name));
+    const stagesToReposition = STANDARD_FUNNEL_STAGES.filter(s =>
+      existingNames.includes(s.name) && stages.find(e => e.name === s.name)?.position !== s.position
+    );
+
+    if (missingStages.length === 0 && stagesToReposition.length === 0) continue;
+
+    // Update positions of existing standard stages (offset first to avoid conflicts)
+    for (const standard of stagesToReposition) {
+      const existing = stages.find(e => e.name === standard.name);
+      await supabase.from('funnel_stages').update({ position: standard.position + 100 }).eq('id', existing.id);
+    }
+    for (const standard of stagesToReposition) {
+      const existing = stages.find(e => e.name === standard.name);
+      await supabase.from('funnel_stages').update({ position: standard.position }).eq('id', existing.id);
+    }
+
+    // Insert missing stages
+    if (missingStages.length > 0) {
+      await supabase.from('funnel_stages').insert(
+        missingStages.map(s => ({ ...s, funnel_id: funnel.id }))
+      );
+    }
+  }
+}
+
 export async function renderProducts(container) {
   container.innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
 
@@ -12,6 +57,8 @@ export async function renderProducts(container) {
     supabase.from('products').select('*, funnels(id, name, funnel_stages(count))').order('created_at'),
     supabase.from('purchases').select('product_id').eq('status', 'completed')
   ]);
+
+  fixExistingFunnels();
 
   const purchaseMap = {};
   (purchaseCounts || []).forEach(p => {
@@ -240,12 +287,8 @@ function showProductForm(product, onSave) {
     </div>
     ${!isEdit ? `
     <div class="form-group" style="background:var(--bg-input);padding:12px;border-radius:var(--radius-md);border:1px solid var(--border-color)">
-      <label class="form-label" style="margin-bottom:4px"><span class="material-symbols-outlined" style="font-size: inherit; vertical-align: middle;">sync</span> Criar funil automaticamente?</label>
-      <p style="font-size:var(--font-size-xs);color:var(--text-muted)">Será criado um funil com etapas padrão (Lead → Qualificado → Proposta → Negociação → Fechado)</p>
-      <label style="display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer">
-        <input type="checkbox" id="pf-create-funnel" checked style="width:16px;height:16px" />
-        <span style="font-size:var(--font-size-sm)">Sim, criar funil</span>
-      </label>
+      <label class="form-label" style="margin-bottom:4px"><span class="material-symbols-outlined" style="font-size: inherit; vertical-align: middle;">sync</span> Funil criado automaticamente</label>
+      <p style="font-size:var(--font-size-xs);color:var(--text-muted)">Será criado um funil com as etapas padrão: Lead → Contatado → Qualificado → Analisando → Negociação → Fechado Ganho → Fechado Perdido</p>
     </div>
     ` : ''}
   `;
@@ -292,25 +335,15 @@ function showProductForm(product, onSave) {
     } else {
       const { data: newProduct } = await supabase.from('products').insert(data).select().single();
 
-      // Create funnel if checked
-      const createFunnel = modal.querySelector('#pf-create-funnel');
-      if (createFunnel && createFunnel.checked && newProduct) {
+      if (newProduct) {
         const { data: newFunnel } = await supabase.from('funnels').insert({
           product_id: newProduct.id,
           name: `Funil - ${name}`
         }).select().single();
 
         if (newFunnel) {
-          const defaultStages = [
-            { name: 'Lead', position: 0, color: '#94a3b8' },
-            { name: 'Qualificado', position: 1, color: '#3b82f6' },
-            { name: 'Analisando', position: 2, color: '#f59e0b' },
-            { name: 'Negociação', position: 3, color: '#8b5cf6' },
-            { name: 'Fechado Ganho', position: 4, color: '#10b981' },
-            { name: 'Fechado Perdido', position: 5, color: '#ef4444' }
-          ];
           await supabase.from('funnel_stages').insert(
-            defaultStages.map(s => ({ ...s, funnel_id: newFunnel.id }))
+            STANDARD_FUNNEL_STAGES.map(s => ({ ...s, funnel_id: newFunnel.id }))
           );
         }
       }

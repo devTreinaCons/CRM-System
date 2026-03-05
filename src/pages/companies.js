@@ -781,6 +781,17 @@ function showCompanyForm(company = null, onSuccess) {
     const formData = new FormData(form);
     const companyData = Object.fromEntries(formData.entries());
 
+    const name = companyData.name?.trim();
+    if (name) {
+      let duplicateQuery = supabase.from('companies').select('id, name').ilike('name', name);
+      if (isEdit) duplicateQuery = duplicateQuery.neq('id', company.id);
+      const { data: existing } = await duplicateQuery.maybeSingle();
+      if (existing) {
+        showToast(`Já existe uma empresa com o nome "${existing.name}"`, 'warning');
+        return;
+      }
+    }
+
     let error;
     if (isEdit) {
       const { error: err } = await supabase.from('companies').update(companyData).eq('id', company.id);
@@ -791,7 +802,8 @@ function showCompanyForm(company = null, onSuccess) {
     }
 
     if (error) {
-      showToast('Erro ao salvar empresa', 'error');
+      if (error.code === '23505') showToast('Já existe uma empresa com este nome', 'warning');
+      else showToast('Erro ao salvar empresa', 'error');
     } else {
       showToast(isEdit ? 'Empresa atualizada' : 'Empresa criada com sucesso', 'success');
       closeModal();
