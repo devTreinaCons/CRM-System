@@ -2,6 +2,42 @@ import { supabase } from '../supabase.js';
 import { showToast } from '../components/toast.js';
 import { openModal, closeModal } from '../components/modal.js';
 
+const STANDARD_FUNNEL_STAGES = [
+  { name: 'Lead',            position: 0, color: '#94a3b8' },
+  { name: 'Contatado',       position: 1, color: '#60a5fa' },
+  { name: 'Qualificado',     position: 2, color: '#3b82f6' },
+  { name: 'Analisando',      position: 3, color: '#f59e0b' },
+  { name: 'Negociação',      position: 4, color: '#8b5cf6' },
+  { name: 'Fechado Ganho',   position: 5, color: '#10b981' },
+  { name: 'Fechado Perdido', position: 6, color: '#ef4444' },
+];
+
+async function fixFunnelStages(funnelId) {
+  const { data: stages } = await supabase.from('funnel_stages').select('*').eq('funnel_id', funnelId).order('position');
+  if (!stages) return;
+
+  const existingNames = stages.map(s => s.name);
+  const missingStages = STANDARD_FUNNEL_STAGES.filter(s => !existingNames.includes(s.name));
+  const stagesToReposition = STANDARD_FUNNEL_STAGES.filter(s =>
+    existingNames.includes(s.name) && stages.find(e => e.name === s.name)?.position !== s.position
+  );
+
+  if (missingStages.length === 0 && stagesToReposition.length === 0) return;
+
+  for (const standard of stagesToReposition) {
+    const existing = stages.find(e => e.name === standard.name);
+    await supabase.from('funnel_stages').update({ position: standard.position + 100 }).eq('id', existing.id);
+  }
+  for (const standard of stagesToReposition) {
+    const existing = stages.find(e => e.name === standard.name);
+    await supabase.from('funnel_stages').update({ position: standard.position }).eq('id', existing.id);
+  }
+
+  if (missingStages.length > 0) {
+    await supabase.from('funnel_stages').insert(missingStages.map(s => ({ ...s, funnel_id: funnelId })));
+  }
+}
+
 export async function renderFunnels(container) {
   container.innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
 
@@ -12,6 +48,10 @@ export async function renderFunnels(container) {
     supabase.from('funnels').select('*, products(name, icon, color, category, edition)').eq('active', true).order('created_at'),
     supabase.from('products').select('*').eq('active', true).order('created_at')
   ]);
+
+  if (funnels?.length) {
+    await Promise.all(funnels.map(f => fixFunnelStages(f.id)));
+  }
 
   if (!funnels || funnels.length === 0) {
     container.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><span class="material-symbols-outlined" style="font-size: inherit; vertical-align: middle;">sync</span></div><div class="empty-state-title">Nenhum funil encontrado</div></div>`;
