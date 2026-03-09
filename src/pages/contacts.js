@@ -317,6 +317,7 @@ export async function renderContactDetail(container, contactId) {
             <ul class="contact-info-list">
               ${contact.email ? `<li class="contact-info-item"><span class="info-icon"><span class="material-symbols-outlined" style="font-size: inherit; vertical-align: middle;">mail</span></span>${contact.email}</li>` : ''}
               ${contact.phone ? `<li class="contact-info-item"><span class="info-icon"><span class="material-symbols-outlined" style="font-size: inherit; vertical-align: middle;">smartphone</span></span>${formatPhone(contact.phone)}</li>` : ''}
+              ${contact.cpf ? `<li class="contact-info-item"><span class="info-icon"><span class="material-symbols-outlined" style="font-size: inherit; vertical-align: middle;">badge</span></span>CPF: ${formatCpf(contact.cpf)}</li>` : ''}
               ${contactCompanies.length > 0 ? contactCompanies.map(cc => `
                 <li class="contact-info-item">
                   <span class="info-icon"><span class="material-symbols-outlined" style="font-size: inherit; vertical-align: middle;">business</span></span>
@@ -858,6 +859,10 @@ export async function showContactForm(contact, onSave) {
       </div>
     </div>
     <div class="form-group">
+      <label class="form-label">CPF <span style="font-weight:400;color:var(--text-tertiary)">(opcional)</span></label>
+      <input class="form-input" id="cf-cpf" value="${formatCpf(contact?.cpf) || ''}" placeholder="000.000.000-00" />
+    </div>
+    <div class="form-group">
       <label class="form-label">Empresas Vinculadas</label>
       <div id="cf-companies-list" style="margin-bottom:12px">
         ${(existingCompanies || []).map(cc => `
@@ -929,6 +934,14 @@ export async function showContactForm(contact, onSave) {
       });
     }
 
+    // CPF formatting
+    const cpfInput = modal.querySelector('#cf-cpf');
+    if (cpfInput) {
+      cpfInput.addEventListener('input', (e) => {
+        e.target.value = formatCpf(e.target.value);
+      });
+    }
+
     // Manage company links in the form
     const selectedCompanies = (existingCompanies || []).map(cc => ({ id: cc.company_id, name: cc.companies?.name, position: cc.position }));
 
@@ -992,6 +1005,18 @@ export async function showContactForm(contact, onSave) {
         }
       }
 
+      const cpf = modal.querySelector('#cf-cpf').value.trim();
+      const sanitizedCpfValue = sanitizeCpf(cpf);
+      if (sanitizedCpfValue) {
+        let duplicateQuery = supabase.from('contacts').select('id, name, cpf').eq('cpf', sanitizedCpfValue);
+        if (isEdit) duplicateQuery = duplicateQuery.neq('id', contact.id);
+        const { data: existingContact } = await duplicateQuery.maybeSingle();
+        if (existingContact) {
+          showToast(`Já existe um contato com este CPF: ${existingContact.name}`, 'warning');
+          return;
+        }
+      }
+
       // Logic to handle new company if provided as text but not in dropdown
       const companyName = modal.querySelector('#cf-company-name').value.trim();
       if (companyName) {
@@ -1012,6 +1037,7 @@ export async function showContactForm(contact, onSave) {
         name,
         email: modal.querySelector('#cf-email').value.trim() || null,
         phone: sanitizedPhoneValue || null,
+        cpf: sanitizedCpfValue || null,
         company: primaryCompany?.name || null,
         company_id: primaryCompany?.id || null,
         position: modal.querySelector('#cf-position').value.trim() || null,
@@ -1091,4 +1117,25 @@ function formatPhone(value) {
 function sanitizePhone(value) {
   if (!value) return null;
   return value.replace(/\D/g, "") || null;
+}
+
+function formatCpf(value) {
+  if (!value) return "";
+  value = value.replace(/\D/g, "");
+  if (value.length > 11) value = value.slice(0, 11);
+
+  if (value.length > 9) {
+    return `${value.slice(0, 3)}.${value.slice(3, 6)}.${value.slice(6, 9)}-${value.slice(9)}`;
+  } else if (value.length > 6) {
+    return `${value.slice(0, 3)}.${value.slice(3, 6)}.${value.slice(6)}`;
+  } else if (value.length > 3) {
+    return `${value.slice(0, 3)}.${value.slice(3)}`;
+  }
+  return value;
+}
+
+function sanitizeCpf(value) {
+  if (!value) return null;
+  const digits = value.replace(/\D/g, "");
+  return digits.length === 11 ? digits : (digits || null);
 }
