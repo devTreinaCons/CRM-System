@@ -12,6 +12,9 @@ export async function renderContacts(container, params) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
+  // Sanitize phones with formatting characters still in the database
+  await sanitizeExistingPhones();
+
   const { data: contacts, error } = await supabase
     .from('contacts')
     .select('*, contact_companies(companies(id, name)), contact_funnel(status, funnels(name))')
@@ -1117,6 +1120,23 @@ function formatPhone(value) {
 function sanitizePhone(value) {
   if (!value) return null;
   return value.replace(/\D/g, "") || null;
+}
+
+async function sanitizeExistingPhones() {
+  const { data: dirtyContacts } = await supabase
+    .from('contacts')
+    .select('id, phone')
+    .not('phone', 'is', null)
+    .or('phone.like.%(%,phone.like.%)%,phone.like.% %,phone.like.%-%');
+
+  if (!dirtyContacts || dirtyContacts.length === 0) return;
+
+  const updates = dirtyContacts.map(c => {
+    const clean = c.phone.replace(/\D/g, '');
+    return supabase.from('contacts').update({ phone: clean || null }).eq('id', c.id);
+  });
+
+  await Promise.all(updates);
 }
 
 function formatCpf(value) {
