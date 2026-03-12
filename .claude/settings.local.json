@@ -6,7 +6,8 @@
       "Bash(find /c/Users/Treinacons/Desktop/CRM -type f \\\\\\(-name *.md -o -name README* -o -name SCHEMA* -o -name init* \\\\\\))",
       "Bash(grep -r \"insert\\\\|update\\\\|select\\\\|from\\(\" /c/Users/Treinacons/Desktop/CRM/src/pages/*.js)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   }
 }
