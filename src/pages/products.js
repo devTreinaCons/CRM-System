@@ -398,47 +398,104 @@ async function showDeleteProductConfirm(product, onDelete) {
 }
 
 async function showLeadDiscovery(product, allProducts) {
-  const { data: allPurchases } = await supabase
-    .from('purchases')
-    .select('*, contacts(*)')
-    .eq('status', 'completed');
-
   if (!product.tags || product.tags.length === 0) {
     showToast('Este produto não possui características definidas para análise.', 'warning');
     return;
   }
 
-  // 1. Identify contacts who bought THIS product
-  const existingBuyers = new Set((allPurchases || []).filter(p => p.product_id === product.id).map(p => p.contact_id));
+  // Fetch purchases and funnel data in parallel
+  const [purchasesRes, funnelsRes, contactFunnelRes] = await Promise.all([
+    supabase.from('purchases').select('*, contacts(*)').eq('status', 'completed'),
+    supabase.from('funnels').select('id, product_id, funnel_stages(id, name, position)'),
+    supabase.from('contact_funnel').select('*, contacts(*), funnel_stages(name, position)').eq('status', 'active'),
+  ]);
 
-  // 2. Identify products with similar tags
+  const allPurchases = purchasesRes.data || [];
+  const allFunnels = funnelsRes.data || [];
+  const activeContactFunnels = contactFunnelRes.data || [];
+
+  // Etapas consideradas "quase compra" (posição >= 2: Qualificado, Analisando, Negociação)
+  const ALMOST_BOUGHT_MIN_POSITION = 2;
+
+  // 1. Contatos que JÁ compraram este produto
+  const existingBuyers = new Set(allPurchases.filter(p => p.product_id === product.id).map(p => p.contact_id));
+
+  // 2. Produtos relacionados por tags
   const similarProducts = allProducts.filter(p =>
     p.id !== product.id &&
     p.tags &&
     p.tags.some(tag => product.tags.includes(tag))
   );
-
   const similarProductIds = new Set(similarProducts.map(p => p.id));
 
-  // 3. Find contacts who bought similar products but NOT this one
+  // Mapa de funis por product_id para lookup rápido
+  const funnelsByProduct = {};
+  allFunnels.forEach(f => { funnelsByProduct[f.product_id] = f; });
+
+  // IDs dos funis de produtos relacionados
+  const similarFunnelIds = new Set(
+    similarProducts.map(p => funnelsByProduct[p.id]?.id).filter(Boolean)
+  );
+
+  // 3. Leads por compra de produtos relacionados
   const potentialLeadsMap = {};
-  (allPurchases || []).forEach(p => {
+
+  allPurchases.forEach(p => {
     if (similarProductIds.has(p.product_id) && !existingBuyers.has(p.contact_id)) {
       if (!potentialLeadsMap[p.contact_id]) {
         potentialLeadsMap[p.contact_id] = {
           contact: p.contacts,
-          boughtSimilar: [],
+          reasons: [],
           score: 0
         };
       }
       const lead = potentialLeadsMap[p.contact_id];
-      if (!lead.boughtSimilar.find(bp => bp.id === p.product_id)) {
-        const prod = similarProducts.find(sp => sp.id === p.product_id);
-        lead.boughtSimilar.push(prod);
-        // Calculate score based on tag overlap
+      const prod = similarProducts.find(sp => sp.id === p.product_id);
+      if (prod && !lead.reasons.find(r => r.id === prod.id && r.type === 'compra')) {
+        lead.reasons.push({ id: prod.id, name: prod.name, color: prod.color, type: 'compra' });
         const overlap = prod.tags.filter(t => product.tags.includes(t)).length;
-        lead.score += overlap;
+        lead.score += overlap * 2;
       }
+    }
+  });
+
+  // 4. Leads por etapas avançadas em funis de produtos relacionados
+  activeContactFunnels.forEach(cf => {
+    if (!similarFunnelIds.has(cf.funnel_id)) return;
+    if (existingBuyers.has(cf.contact_id)) return;
+    if (!cf.contacts || !cf.funnel_stages) return;
+
+    const stagePosition = cf.funnel_stages.position;
+    if (stagePosition < ALMOST_BOUGHT_MIN_POSITION) return;
+
+    const funnel = allFunnels.find(f => f.id === cf.funnel_id);
+    if (!funnel) return;
+    const relatedProduct = similarProducts.find(p => p.id === funnel.product_id);
+    if (!relatedProduct) return;
+
+    if (!potentialLeadsMap[cf.contact_id]) {
+      potentialLeadsMap[cf.contact_id] = {
+        contact: cf.contacts,
+        reasons: [],
+        score: 0
+      };
+    }
+
+    const lead = potentialLeadsMap[cf.contact_id];
+    const reasonKey = `${relatedProduct.id}-${cf.funnel_stages.name}`;
+    if (!lead.reasons.find(r => r.key === reasonKey)) {
+      lead.reasons.push({
+        id: relatedProduct.id,
+        key: reasonKey,
+        name: relatedProduct.name,
+        color: relatedProduct.color,
+        type: 'funil',
+        stageName: cf.funnel_stages.name
+      });
+      const overlap = relatedProduct.tags.filter(t => product.tags.includes(t)).length;
+      // Quanto mais avançada a etapa, maior o score
+      const stageBonus = stagePosition >= 4 ? 3 : stagePosition >= 3 ? 2 : 1;
+      lead.score += overlap + stageBonus;
     }
   });
 
@@ -447,7 +504,13 @@ async function showLeadDiscovery(product, allProducts) {
   const content = document.createElement('div');
   content.innerHTML = `
     <div style="margin-bottom:16px">
-      <p style="font-size:var(--font-size-sm);color:var(--text-secondary)">Analisando contatos que consumiram produtos com as características: <strong>${product.tags.join(', ')}</strong></p>
+      <p style="font-size:var(--font-size-sm);color:var(--text-secondary)">
+        Analisando contatos que consumiram ou demonstraram interesse em produtos com as características: <strong>${product.tags.join(', ')}</strong>
+      </p>
+      <div style="display:flex;gap:12px;margin-top:8px">
+        <span style="font-size:10px;color:var(--text-muted)"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#10b981;margin-right:4px"></span>Comprou produto relacionado</span>
+        <span style="font-size:10px;color:var(--text-muted)"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#8b5cf6;margin-right:4px"></span>Avançou no funil de produto relacionado</span>
+      </div>
     </div>
     ${potentialLeads.length === 0 ? `
       <div class="empty-state" style="padding:20px">
@@ -473,7 +536,10 @@ async function showLeadDiscovery(product, allProducts) {
                 </td>
                 <td>
                   <div style="display:flex;gap:4px;flex-wrap:wrap">
-                    ${l.boughtSimilar.map(p => `<span class="badge" title="${p.name}" style="background:${p.color}22;color:${p.color};font-size:9px">${p.name}</span>`).join('')}
+                    ${l.reasons.map(r => r.type === 'compra'
+                      ? `<span class="badge" title="Comprou: ${r.name}" style="background:#10b98122;color:#10b981;font-size:9px">✓ ${r.name}</span>`
+                      : `<span class="badge" title="Etapa '${r.stageName}' em: ${r.name}" style="background:#8b5cf622;color:#8b5cf6;font-size:9px">⟳ ${r.name} (${r.stageName})</span>`
+                    ).join('')}
                   </div>
                 </td>
                 <td>
