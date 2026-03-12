@@ -404,25 +404,37 @@ async function showLeadDiscovery(product, allProducts) {
   }
 
   // Fetch purchases, funnel data and all contacts in parallel
-  const [purchasesRes, funnelsRes, contactFunnelRes, contactsRes] = await Promise.all([
+  const [purchasesRes, funnelsRes, allContactFunnelRes, contactsRes] = await Promise.all([
     supabase.from('purchases').select('*, contacts(*)').eq('status', 'completed'),
     supabase.from('funnels').select('id, product_id, funnel_stages(id, name, position)'),
-    supabase.from('contact_funnel').select('*, contacts(*), funnel_stages(name, position)').eq('status', 'active'),
+    supabase.from('contact_funnel').select('*, contacts(*), funnel_stages(name, position)'),
     supabase.from('contacts').select('id, name, company, phone, email, tags'),
   ]);
 
   const allPurchases = purchasesRes.data || [];
   const allFunnels = funnelsRes.data || [];
-  const activeContactFunnels = contactFunnelRes.data || [];
+  const allContactFunnels = allContactFunnelRes.data || [];
   const allContacts = contactsRes.data || [];
 
   // Etapas consideradas "quase compra" (posição >= 2: Qualificado, Analisando, Negociação)
   const ALMOST_BOUGHT_MIN_POSITION = 2;
 
+  // Funil deste produto e sua primeira etapa (Lead)
+  const productFunnel = allFunnels.find(f => f.product_id === product.id);
+  const leadStage = productFunnel?.funnel_stages
+    ?.sort((a, b) => a.position - b.position)[0];
+
   // 1. Contatos que JÁ compraram este produto
   const existingBuyers = new Set(allPurchases.filter(p => p.product_id === product.id).map(p => p.contact_id));
 
-  // 2. Produtos relacionados por tags
+  // 2. Contatos que JÁ estão no funil deste produto (qualquer status)
+  const alreadyInFunnel = new Set(
+    productFunnel
+      ? allContactFunnels.filter(cf => cf.funnel_id === productFunnel.id).map(cf => cf.contact_id)
+      : []
+  );
+
+  // 3. Produtos relacionados por tags
   const similarProducts = allProducts.filter(p =>
     p.id !== product.id &&
     p.tags &&
@@ -439,11 +451,14 @@ async function showLeadDiscovery(product, allProducts) {
     similarProducts.map(p => funnelsByProduct[p.id]?.id).filter(Boolean)
   );
 
-  // 3. Leads por compra de produtos relacionados
+  // Filtro combinado: exclui quem já comprou OU já está no funil
+  const isExcluded = (contactId) => existingBuyers.has(contactId) || alreadyInFunnel.has(contactId);
+
+  // 4. Leads por compra de produtos relacionados
   const potentialLeadsMap = {};
 
   allPurchases.forEach(p => {
-    if (similarProductIds.has(p.product_id) && !existingBuyers.has(p.contact_id)) {
+    if (similarProductIds.has(p.product_id) && !isExcluded(p.contact_id)) {
       if (!potentialLeadsMap[p.contact_id]) {
         potentialLeadsMap[p.contact_id] = {
           contact: p.contacts,
@@ -461,10 +476,11 @@ async function showLeadDiscovery(product, allProducts) {
     }
   });
 
-  // 4. Leads por etapas avançadas em funis de produtos relacionados
+  // 5. Leads por etapas avançadas em funis de produtos relacionados
+  const activeContactFunnels = allContactFunnels.filter(cf => cf.status === 'active');
   activeContactFunnels.forEach(cf => {
     if (!similarFunnelIds.has(cf.funnel_id)) return;
-    if (existingBuyers.has(cf.contact_id)) return;
+    if (isExcluded(cf.contact_id)) return;
     if (!cf.contacts || !cf.funnel_stages) return;
 
     const stagePosition = cf.funnel_stages.position;
@@ -495,15 +511,14 @@ async function showLeadDiscovery(product, allProducts) {
         stageName: cf.funnel_stages.name
       });
       const overlap = relatedProduct.tags.filter(t => product.tags.includes(t)).length;
-      // Quanto mais avançada a etapa, maior o score
       const stageBonus = stagePosition >= 4 ? 3 : stagePosition >= 3 ? 2 : 1;
       lead.score += overlap + stageBonus;
     }
   });
 
-  // 5. Leads por tags do contato que coincidem com tags do produto
+  // 6. Leads por tags do contato que coincidem com tags do produto
   allContacts.forEach(c => {
-    if (existingBuyers.has(c.id)) return;
+    if (isExcluded(c.id)) return;
     if (!c.tags || c.tags.length === 0) return;
 
     const matchingTags = c.tags.filter(t => product.tags.includes(t));
@@ -558,7 +573,7 @@ async function showLeadDiscovery(product, allProducts) {
           </thead>
           <tbody>
             ${potentialLeads.map(l => `
-              <tr>
+              <tr data-contact-id="${l.contact.id}">
                 <td>
                   <div style="font-weight:600">${l.contact.name}</div>
                   <div style="font-size:10px;color:var(--text-muted)">${l.contact.company || ''}</div>
@@ -573,7 +588,10 @@ async function showLeadDiscovery(product, allProducts) {
                   </div>
                 </td>
                 <td>
-                  <button class="btn btn-primary btn-xs" onclick="window.location.hash='#/contacts/${l.contact.id}'">Ver Perfil</button>
+                  <div style="display:flex;gap:4px;align-items:center">
+                    ${productFunnel && leadStage ? `<button class="btn btn-primary btn-xs ld-add-funnel" data-contact-id="${l.contact.id}" data-contact-name="${l.contact.name}" title="Adicionar ao funil como Lead"><span class="material-symbols-outlined" style="font-size:14px">add_circle</span> Funil</button>` : ''}
+                    <button class="btn btn-secondary btn-xs" onclick="window.location.hash='#/contacts/${l.contact.id}'">Ver Perfil</button>
+                  </div>
                 </td>
               </tr>
             `).join('')}
@@ -588,6 +606,52 @@ async function showLeadDiscovery(product, allProducts) {
 
   const { modal } = openModal({ title: `Leads Sugeridos: ${product.name}`, content, footer, size: 'lg' });
   modal.querySelector('#ld-close').addEventListener('click', closeModal);
+
+  // Event listeners for "Adicionar ao Funil" buttons
+  if (productFunnel && leadStage) {
+    modal.querySelectorAll('.ld-add-funnel').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const contactId = btn.dataset.contactId;
+        const contactName = btn.dataset.contactName;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:14px">hourglass_top</span>';
+
+        const { error } = await supabase.from('contact_funnel').insert({
+          funnel_id: productFunnel.id,
+          contact_id: contactId,
+          company_id: null,
+          current_stage_id: leadStage.id
+        });
+
+        if (error) {
+          if (error.code === '23505') showToast(`${contactName} já está neste funil`, 'warning');
+          else showToast('Erro ao adicionar: ' + error.message, 'error');
+          btn.disabled = false;
+          btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:14px">add_circle</span> Funil';
+          return;
+        }
+
+        showToast(`${contactName} adicionado ao funil como Lead`, 'success');
+        // Remove the row from the table
+        const row = btn.closest('tr');
+        if (row) row.remove();
+
+        // Check if table is now empty
+        const tbody = modal.querySelector('tbody');
+        if (tbody && tbody.children.length === 0) {
+          const tableContainer = modal.querySelector('.data-table')?.parentElement;
+          if (tableContainer) {
+            tableContainer.innerHTML = `
+              <div class="empty-state" style="padding:20px">
+                <span class="material-symbols-outlined" style="font-size:48px;color:var(--border-color)">check_circle</span>
+                <p>Todos os leads foram adicionados ao funil!</p>
+              </div>
+            `;
+          }
+        }
+      });
+    });
+  }
 }
 
 function formatCurrency(v) {
