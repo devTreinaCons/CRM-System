@@ -403,16 +403,18 @@ async function showLeadDiscovery(product, allProducts) {
     return;
   }
 
-  // Fetch purchases and funnel data in parallel
-  const [purchasesRes, funnelsRes, contactFunnelRes] = await Promise.all([
+  // Fetch purchases, funnel data and all contacts in parallel
+  const [purchasesRes, funnelsRes, contactFunnelRes, contactsRes] = await Promise.all([
     supabase.from('purchases').select('*, contacts(*)').eq('status', 'completed'),
     supabase.from('funnels').select('id, product_id, funnel_stages(id, name, position)'),
     supabase.from('contact_funnel').select('*, contacts(*), funnel_stages(name, position)').eq('status', 'active'),
+    supabase.from('contacts').select('id, name, company, phone, email, tags'),
   ]);
 
   const allPurchases = purchasesRes.data || [];
   const allFunnels = funnelsRes.data || [];
   const activeContactFunnels = contactFunnelRes.data || [];
+  const allContacts = contactsRes.data || [];
 
   // Etapas consideradas "quase compra" (posição >= 2: Qualificado, Analisando, Negociação)
   const ALMOST_BOUGHT_MIN_POSITION = 2;
@@ -499,6 +501,32 @@ async function showLeadDiscovery(product, allProducts) {
     }
   });
 
+  // 5. Leads por tags do contato que coincidem com tags do produto
+  allContacts.forEach(c => {
+    if (existingBuyers.has(c.id)) return;
+    if (!c.tags || c.tags.length === 0) return;
+
+    const matchingTags = c.tags.filter(t => product.tags.includes(t));
+    if (matchingTags.length === 0) return;
+
+    if (!potentialLeadsMap[c.id]) {
+      potentialLeadsMap[c.id] = {
+        contact: c,
+        reasons: [],
+        score: 0
+      };
+    }
+
+    const lead = potentialLeadsMap[c.id];
+    if (!lead.reasons.find(r => r.type === 'tag')) {
+      lead.reasons.push({
+        type: 'tag',
+        matchingTags
+      });
+      lead.score += matchingTags.length;
+    }
+  });
+
   const potentialLeads = Object.values(potentialLeadsMap).sort((a, b) => b.score - a.score);
 
   const content = document.createElement('div');
@@ -507,9 +535,10 @@ async function showLeadDiscovery(product, allProducts) {
       <p style="font-size:var(--font-size-sm);color:var(--text-secondary)">
         Analisando contatos que consumiram ou demonstraram interesse em produtos com as características: <strong>${product.tags.join(', ')}</strong>
       </p>
-      <div style="display:flex;gap:12px;margin-top:8px">
+      <div style="display:flex;gap:12px;margin-top:8px;flex-wrap:wrap">
         <span style="font-size:10px;color:var(--text-muted)"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#10b981;margin-right:4px"></span>Comprou produto relacionado</span>
         <span style="font-size:10px;color:var(--text-muted)"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#8b5cf6;margin-right:4px"></span>Avançou no funil de produto relacionado</span>
+        <span style="font-size:10px;color:var(--text-muted)"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#f59e0b;margin-right:4px"></span>Possui tag compatível</span>
       </div>
     </div>
     ${potentialLeads.length === 0 ? `
@@ -536,10 +565,11 @@ async function showLeadDiscovery(product, allProducts) {
                 </td>
                 <td>
                   <div style="display:flex;gap:4px;flex-wrap:wrap">
-                    ${l.reasons.map(r => r.type === 'compra'
-                      ? `<span class="badge" title="Comprou: ${r.name}" style="background:#10b98122;color:#10b981;font-size:9px">✓ ${r.name}</span>`
-                      : `<span class="badge" title="Etapa '${r.stageName}' em: ${r.name}" style="background:#8b5cf622;color:#8b5cf6;font-size:9px">⟳ ${r.name} (${r.stageName})</span>`
-                    ).join('')}
+                    ${l.reasons.map(r => {
+                      if (r.type === 'compra') return `<span class="badge" title="Comprou: ${r.name}" style="background:#10b98122;color:#10b981;font-size:9px">✓ ${r.name}</span>`;
+                      if (r.type === 'funil') return `<span class="badge" title="Etapa '${r.stageName}' em: ${r.name}" style="background:#8b5cf622;color:#8b5cf6;font-size:9px">⟳ ${r.name} (${r.stageName})</span>`;
+                      return r.matchingTags.map(t => `<span class="badge" title="Tag do contato: ${t}" style="background:#f59e0b22;color:#f59e0b;font-size:9px">⚑ ${t}</span>`).join('');
+                    }).join('')}
                   </div>
                 </td>
                 <td>

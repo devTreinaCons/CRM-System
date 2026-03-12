@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /c/Users/Treinacons/Desktop/CRM -type f -name *.sql -o -name *schema* -o -name *migration*)",
+      "Bash(find /c/Users/Treinacons/Desktop/CRM -type f \\\\\\(-name *.sql -o -name *schema* -o -name *migration* -o -name *.json \\\\\\))",
+      "Bash(find /c/Users/Treinacons/Desktop/CRM -type f \\\\\\(-name *.md -o -name README* -o -name SCHEMA* -o -name init* \\\\\\))",
+      "Bash(grep -r \"insert\\\\|update\\\\|select\\\\|from\\(\" /c/Users/Treinacons/Desktop/CRM/src/pages/*.js)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}
