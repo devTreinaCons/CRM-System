@@ -1,4 +1,5 @@
 import { supabase } from '../supabase.js';
+import { escapeHTML } from '../utils/sanitize.js';
 
 export async function renderAnalytics(container) {
   container.innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
@@ -135,7 +136,7 @@ export async function renderAnalytics(container) {
           ${Object.entries(funnelGroups).map(([name, data]) => `
             <div class="card">
               <div class="card-header">
-                <h3 class="card-title"><span class="material-symbols-outlined" style="vertical-align: middle;">${data.icon}</span> ${name}</h3>
+                <h3 class="card-title"><span class="material-symbols-outlined" style="vertical-align: middle;">${escapeHTML(data.icon)}</span> ${escapeHTML(name)}</h3>
                 <div>
                   <span class="badge badge-success">${data.won} ganhos</span>
                   <span class="badge badge-danger">${data.lost} perdidos</span>
@@ -144,7 +145,7 @@ export async function renderAnalytics(container) {
               <div class="funnel-chart">
                 ${Object.entries(data.stages).sort((a, b) => a[1].position - b[1].position).map(([stageName, stageData]) => `
                   <div class="funnel-bar-row">
-                    <span class="funnel-bar-label">${stageName}</span>
+                    <span class="funnel-bar-label">${escapeHTML(stageName)}</span>
                     <div class="funnel-bar-track">
                       <div class="funnel-bar-fill" style="width:${Math.max((stageData.count / data.total) * 100, 8)}%; background:${stageData.color}">${stageData.count}</div>
                     </div>
@@ -170,7 +171,7 @@ export async function renderAnalytics(container) {
       return `
                 <div style="margin-bottom:12px">
                   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-                    <span style="font-size:var(--font-size-sm);font-weight:600;display:flex;align-items:center;gap:6px"><span class="material-symbols-outlined" style="font-size:18px">${data.icon}</span> ${name}</span>
+                    <span style="font-size:var(--font-size-sm);font-weight:600;display:flex;align-items:center;gap:6px"><span class="material-symbols-outlined" style="font-size:18px">${escapeHTML(data.icon)}</span> ${escapeHTML(name)}</span>
                     <span style="font-weight:700;color:var(--accent-success);font-size:var(--font-size-sm)">R$ ${formatCurrency(data.revenue)}</span>
                   </div>
                   <div class="funnel-bar-track" style="height:12px">
@@ -193,7 +194,7 @@ export async function renderAnalytics(container) {
               <div class="recommendation-card">
                 <span class="recommendation-icon material-symbols-outlined">${data.icon}</span>
                 <div class="recommendation-info">
-                  <div class="recommendation-name">${name}</div>
+                  <div class="recommendation-name">${escapeHTML(name)}</div>
                   <div class="recommendation-reason">${data.notBought} de ${data.total} clientes ainda não compraram</div>
                 </div>
                 <span class="badge badge-warning">${data.total > 0 ? ((data.notBought / data.total) * 100).toFixed(0) : 0}%</span>
@@ -241,9 +242,9 @@ export async function renderAnalytics(container) {
           return `
                   <div style="display:flex;align-items:center;justify-content:space-between;padding:10px;border-bottom:1px solid var(--border-color); cursor:pointer" onclick="window.location.hash='#/contacts/${c.id}'">
                     <div style="display:flex;align-items:center;gap:10px">
-                      <div class="avatar avatar-xs" style="background:var(--accent-primary); font-size:10px">${c.name.substring(0, 2).toUpperCase()}</div>
+                      <div class="avatar avatar-xs" style="background:var(--accent-primary); font-size:10px">${escapeHTML(c.name).substring(0, 2).toUpperCase()}</div>
                       <div>
-                        <div style="font-weight:600;font-size:var(--font-size-sm)">${c.name}</div>
+                        <div style="font-weight:600;font-size:var(--font-size-sm)">${escapeHTML(c.name)}</div>
                         <div style="font-size:10px;color:var(--text-muted)">${bDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}</div>
                       </div>
                     </div>

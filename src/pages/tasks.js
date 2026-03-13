@@ -1,6 +1,7 @@
 import { supabase } from '../supabase.js';
 import { showToast } from '../components/toast.js';
 import { openModal, closeModal } from '../components/modal.js';
+import { escapeHTML } from '../utils/sanitize.js';
 
 export async function renderTasks(container) {
   container.innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
@@ -57,7 +58,7 @@ export async function renderTasks(container) {
         </select>
         <select class="form-select" id="filter-funnel" style="width:auto;max-width:200px">
           <option value="">Todos os funis</option>
-          ${(funnels || []).map(f => `<option value="${f.id}">${f.products?.icon || 'inventory_2'} - ${f.products?.name || f.name}</option>`).join('')}
+          ${(funnels || []).map(f => `<option value="${f.id}">${escapeHTML(f.products?.icon) || 'inventory_2'} - ${escapeHTML(f.products?.name) || escapeHTML(f.name)}</option>`).join('')}
         </select>
         
         <div style="flex:1"></div>
@@ -171,23 +172,23 @@ export async function renderTasks(container) {
       <div class="task-item" style="cursor:pointer" onclick="window.location.hash='#/contacts/${t.contacts?.id || ''}'">
         <div class="task-checkbox ${t.status === 'completed' ? 'checked' : ''}" data-task-id="${t.id}"></div>
         <div class="task-content">
-          <div class="task-title ${t.status === 'completed' ? 'completed' : ''}">${t.title}</div>
-          ${t.description ? `<div style="font-size:var(--font-size-sm);color:var(--text-muted);margin:4px 0">${t.description}</div>` : ''}
+          <div class="task-title ${t.status === 'completed' ? 'completed' : ''}">${escapeHTML(t.title)}</div>
+          ${t.description ? `<div style="font-size:var(--font-size-sm);color:var(--text-muted);margin:4px 0">${escapeHTML(t.description)}</div>` : ''}
           <div class="task-meta">
             ${t.contacts ? `
               <span class="task-meta-item" style="display:flex;align-items:center;gap:4px">
-                <span class="avatar" style="width:18px;height:18px;font-size:8px;background:${t.contacts.avatar_color || '#6366f1'}">${getInitials(t.contacts.name)}</span>
-                ${t.contacts.name}
+                <span class="avatar" style="width:18px;height:18px;font-size:8px;background:${escapeHTML(t.contacts.avatar_color) || '#6366f1'}">${getInitials(escapeHTML(t.contacts.name))}</span>
+                ${escapeHTML(t.contacts.name)}
               </span>
             ` : ''}
             ${t.profiles ? `
-              <span class="task-meta-item" style="display:flex;align-items:center;gap:4px" title="Atribuído a ${t.profiles.name}">
+              <span class="task-meta-item" style="display:flex;align-items:center;gap:4px" title="Atribuído a ${escapeHTML(t.profiles.name)}">
                 <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">person</span>
-                ${t.profiles.name}
+                ${escapeHTML(t.profiles.name)}
               </span>
             ` : ''}
             <span class="badge badge-${t.priority === 'urgent' ? 'danger' : t.priority === 'high' ? 'warning' : t.priority === 'medium' ? 'primary' : 'neutral'}">${priorityLabel(t.priority)}</span>
-            ${t.funnels ? `<span class="task-meta-item"><span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 2px;">${t.funnels.products?.icon || 'inventory_2'}</span> ${t.funnels.products?.name || t.funnels.name}</span>` : ''}
+            ${t.funnels ? `<span class="task-meta-item"><span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 2px;">${escapeHTML(t.funnels.products?.icon) || 'inventory_2'}</span> ${escapeHTML(t.funnels.products?.name) || escapeHTML(t.funnels.name)}</span>` : ''}
             ${t.due_date ? `<span class="task-due ${isOverdue ? 'overdue' : isToday ? 'today' : 'upcoming'}">${isOverdue ? '<span class="material-symbols-outlined" style="font-size: inherit; vertical-align: middle;">warning</span> ' : ''}${formatDate(t.due_date)}</span>` : ''}
           </div>
         </div>
@@ -241,7 +242,7 @@ async function showNewTaskGlobal(contacts, funnels, profiles, onSave) {
       <label class="form-label">Contato *</label>
       <select class="form-select" id="gt-contact">
         <option value="">Selecione um contato</option>
-        ${(contacts || []).map(c => `<option value="${c.id}">${c.name}${c.company ? ` (${c.company})` : ''}</option>`).join('')}
+        ${(contacts || []).map(c => `<option value="${c.id}">${escapeHTML(c.name)}${c.company ? ` (${escapeHTML(c.company)})` : ''}</option>`).join('')}
       </select>
     </div>
     <div class="form-group">
@@ -271,14 +272,14 @@ async function showNewTaskGlobal(contacts, funnels, profiles, onSave) {
       <label class="form-label">Funil (opcional)</label>
       <select class="form-select" id="gt-funnel">
         <option value="">Nenhum</option>
-        ${(funnels || []).map(f => `<option value="${f.id}">${f.products?.icon || 'inventory_2'} - ${f.products?.name || f.name}</option>`).join('')}
+        ${(funnels || []).map(f => `<option value="${f.id}">${escapeHTML(f.products?.icon) || 'inventory_2'} - ${escapeHTML(f.products?.name) || escapeHTML(f.name)}</option>`).join('')}
       </select>
     </div>
     <div class="form-group">
       <label class="form-label">Atribuído a (Vendedor)</label>
       <select class="form-select" id="gt-assignee">
         <option value="">Atribuir a mim mesmo</option>
-        ${(profiles || []).map(p => `<option value="${p.id}">${p.name || p.email}</option>`).join('')}
+        ${(profiles || []).map(p => `<option value="${p.id}">${escapeHTML(p.name) || escapeHTML(p.email)}</option>`).join('')}
       </select>
     </div>
   `;

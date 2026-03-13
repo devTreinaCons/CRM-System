@@ -1,6 +1,7 @@
 import { supabase } from '../supabase.js';
 import { showToast } from '../components/toast.js';
 import { openModal, closeModal } from '../components/modal.js';
+import { escapeHTML } from '../utils/sanitize.js';
 
 export async function renderCompanies(container, params) {
   const companyId = params?.id;
@@ -72,12 +73,12 @@ async function renderCompaniesList(container) {
     grid.innerHTML = companies.map(company => `
       <div class="card company-card" onclick="window.location.hash = '#/companies/${company.id}'">
         <div class="company-card-header">
-          <div class="avatar company-avatar" style="background:${company.avatar_color || '#64748b'}">
-            <span class="material-symbols-outlined">${company.logo_icon || 'corporate_fare'}</span>
+          <div class="avatar company-avatar" style="background:${escapeHTML(company.avatar_color) || '#64748b'}">
+            <span class="material-symbols-outlined">${escapeHTML(company.logo_icon) || 'corporate_fare'}</span>
           </div>
           <div class="company-card-info">
-            <h3 class="company-card-name">${company.name}</h3>
-            <span class="company-card-industry">${company.industry || 'Setor não informado'}</span>
+            <h3 class="company-card-name">${escapeHTML(company.name)}</h3>
+            <span class="company-card-industry">${escapeHTML(company.industry) || 'Setor não informado'}</span>
           </div>
         </div>
         <div class="company-card-stats">
@@ -92,7 +93,7 @@ async function renderCompaniesList(container) {
         </div>
         <div class="company-card-footer">
           <span class="material-symbols-outlined" style="font-size:16px">language</span>
-          <span class="company-website">${company.website || 'Sem site'}</span>
+          <span class="company-website">${escapeHTML(company.website) || 'Sem site'}</span>
         </div>
       </div>
     `).join('');
@@ -144,12 +145,12 @@ async function renderCompanyDetail(container, companyId) {
           <button class="btn btn-ghost btn-sm" onclick="window.location.hash = '#/companies'">
             <span class="material-symbols-outlined">arrow_back</span>
           </button>
-          <div class="avatar avatar-lg" style="background:${company.avatar_color || '#64748b'}">
-            <span class="material-symbols-outlined" style="font-size:32px">${company.logo_icon || 'corporate_fare'}</span>
+          <div class="avatar avatar-lg" style="background:${escapeHTML(company.avatar_color) || '#64748b'}">
+            <span class="material-symbols-outlined" style="font-size:32px">${escapeHTML(company.logo_icon) || 'corporate_fare'}</span>
           </div>
           <div class="page-title-group">
-            <h1 class="page-title">${company.name}</h1>
-            <p class="page-subtitle">${company.industry || 'Setor não informado'}</p>
+            <h1 class="page-title">${escapeHTML(company.name)}</h1>
+            <p class="page-subtitle">${escapeHTML(company.industry) || 'Setor não informado'}</p>
           </div>
         </div>
         <div class="page-actions">
@@ -175,11 +176,11 @@ async function renderCompanyDetail(container, companyId) {
       opportunities.map(opp => `
                   <div class="opportunity-item" onclick="window.location.hash = '#/funnels'" style="position:relative">
                     <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
-                      <span class="material-symbols-outlined" style="color:${opp.funnels?.products?.color || 'var(--accent-primary)'};background:var(--bg-input);padding:8px;border-radius:var(--radius-sm)">${opp.funnels?.products?.icon || 'inventory_2'}</span>
+                      <span class="material-symbols-outlined" style="color:${escapeHTML(opp.funnels?.products?.color) || 'var(--accent-primary)'};background:var(--bg-input);padding:8px;border-radius:var(--radius-sm)">${escapeHTML(opp.funnels?.products?.icon) || 'inventory_2'}</span>
                       <div style="flex:1">
-                        <div style="font-weight:700;font-size:var(--font-size-sm)">${opp.funnels?.products?.name || opp.funnels?.name}</div>
-                        ${opp.contacts?.name ? `<div style="font-size:10px;color:var(--accent-primary);font-weight:600;margin-bottom:2px">${opp.contacts.name}</div>` : ''}
-                        <div style="font-size:var(--font-size-xs);color:var(--text-muted)">Etapa: <span style="color:${opp.funnel_stages?.color};font-weight:600">${opp.funnel_stages?.name}</span></div>
+                        <div style="font-weight:700;font-size:var(--font-size-sm)">${escapeHTML(opp.funnels?.products?.name) || escapeHTML(opp.funnels?.name)}</div>
+                        ${opp.contacts?.name ? `<div style="font-size:10px;color:var(--accent-primary);font-weight:600;margin-bottom:2px">${escapeHTML(opp.contacts.name)}</div>` : ''}
+                        <div style="font-size:var(--font-size-xs);color:var(--text-muted)">Etapa: <span style="color:${escapeHTML(opp.funnel_stages?.color)};font-weight:600">${escapeHTML(opp.funnel_stages?.name)}</span></div>
                         <div style="font-size:10px;color:var(--text-muted);margin-top:2px">Desde: ${formatDate(opp.entered_at)}</div>
                       </div>
                       <div style="display:flex; gap:8px">
@@ -199,11 +200,11 @@ async function renderCompanyDetail(container, companyId) {
             <ul class="contact-info-list">
               <li class="contact-info-item">
                 <span class="info-icon"><span class="material-symbols-outlined">language</span></span>
-                ${company.website ? `<a href="${company.website}" target="_blank" class="link-styled">${company.website}</a>` : '<span style="color:var(--text-muted)">Sem site</span>'}
+                ${company.website ? `<a href="${escapeHTML(company.website)}" target="_blank" class="link-styled">${escapeHTML(company.website)}</a>` : '<span style="color:var(--text-muted)">Sem site</span>'}
               </li>
               <li class="contact-info-item">
                 <span class="info-icon"><span class="material-symbols-outlined">category</span></span>
-                ${company.industry || '<span style="color:var(--text-muted)">Indústria não informada</span>'}
+                ${escapeHTML(company.industry) || '<span style="color:var(--text-muted)">Indústria não informada</span>'}
               </li>
               <li class="contact-info-item">
                 <span class="info-icon"><span class="material-symbols-outlined">calendar_today</span></span>
@@ -239,12 +240,12 @@ async function renderCompanyDetail(container, companyId) {
                       <tr onclick="window.location.hash = '#/contacts/${emp.id}'" style="cursor:pointer">
                         <td>
                           <div style="display:flex;align-items:center;gap:10px">
-                            <div class="avatar avatar-xs" style="background:${emp.avatar_color || 'var(--accent-primary)'}">${getInitials(emp.name)}</div>
-                            <span style="font-weight:600">${emp.name}</span>
+                            <div class="avatar avatar-xs" style="background:${escapeHTML(emp.avatar_color) || 'var(--accent-primary)'}">${getInitials(emp.name)}</div>
+                            <span style="font-weight:600">${escapeHTML(emp.name)}</span>
                           </div>
                         </td>
-                        <td><span style="font-size:var(--font-size-sm)">${emp.position || '—'}</span></td>
-                        <td><span style="font-size:var(--font-size-sm);color:var(--text-muted)">${emp.email || '—'}</span></td>
+                        <td><span style="font-size:var(--font-size-sm)">${escapeHTML(emp.position) || '—'}</span></td>
+                        <td><span style="font-size:var(--font-size-sm);color:var(--text-muted)">${escapeHTML(emp.email) || '—'}</span></td>
                         <td style="text-align:right">
                           <button class="btn btn-ghost btn-xs">
                             <span class="material-symbols-outlined" style="font-size:18px">visibility</span>
@@ -284,9 +285,9 @@ async function renderCompanyDetail(container, companyId) {
                         <td>
                           <div style="display:flex;align-items:center;gap:10px">
                             <div style="color:var(--accent-primary);background:var(--bg-input);padding:6px;border-radius:var(--radius-sm);display:flex">
-                              <span class="material-symbols-outlined" style="font-size:18px">${p.products?.icon || 'inventory_2'}</span>
+                              <span class="material-symbols-outlined" style="font-size:18px">${escapeHTML(p.products?.icon) || 'inventory_2'}</span>
                             </div>
-                            <span style="font-weight:600">${p.products?.name || 'Produto'}</span>
+                            <span style="font-weight:600">${escapeHTML(p.products?.name) || 'Produto'}</span>
                           </div>
                         </td>
                         <td>${formatDate(p.purchase_date)}</td>

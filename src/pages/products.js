@@ -1,6 +1,7 @@
 import { supabase } from '../supabase.js';
 import { openModal, closeModal } from '../components/modal.js';
 import { showToast } from '../components/toast.js';
+import { escapeHTML } from '../utils/sanitize.js';
 
 const STANDARD_FUNNEL_STAGES = [
   { name: 'Lead',           position: 0, color: '#94a3b8' },
@@ -89,7 +90,7 @@ export async function renderProducts(container) {
           <div class="filter-group" style="display: flex; gap: 8px; align-items: center;">
             <select class="form-select btn-sm" id="filter-category" style="width: auto; min-width: 160px; height: 38px;">
               <option value="">Todas Categorias</option>
-              ${categories.map(cat => `<option value="${cat}">${cat}</option>`).join('')}
+              ${categories.map(cat => `<option value="${cat}">${escapeHTML(cat)}</option>`).join('')}
             </select>
             
             <select class="form-select btn-sm" id="filter-status" style="width: auto; height: 38px;">
@@ -149,14 +150,14 @@ export async function renderProducts(container) {
     }
 
     grid.innerHTML = filtered.map(p => `
-      <div class="card product-card" style="--product-color: ${p.color}" data-product-id="${p.id}">
-        <div class="product-icon material-symbols-outlined">${p.icon || 'inventory_2'}</div>
-        <div class="product-name">${p.name}</div>
-        <div class="product-description">${p.description || 'Sem descrição'}</div>
+      <div class="card product-card" style="--product-color: ${escapeHTML(p.color)}" data-product-id="${p.id}">
+        <div class="product-icon material-symbols-outlined">${escapeHTML(p.icon) || 'inventory_2'}</div>
+        <div class="product-name">${escapeHTML(p.name)}</div>
+        <div class="product-description">${escapeHTML(p.description) || 'Sem descrição'}</div>
         <div class="product-price">R$ ${formatCurrency(p.price)}</div>
         <div class="product-category">
-          <span class="badge badge-primary">${p.category || 'Geral'}</span>
-          ${p.edition ? `<span class="badge badge-neutral" style="margin-left:4px">${p.edition}</span>` : ''}
+          <span class="badge badge-primary">${escapeHTML(p.category) || 'Geral'}</span>
+          ${p.edition ? `<span class="badge badge-neutral" style="margin-left:4px">${escapeHTML(String(p.edition))}</span>` : ''}
           ${!p.active ? '<span class="badge badge-danger" style="margin-left:4px">Inativo</span>' : ''}
         </div>
         <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border-color);display:flex;flex-direction:column;gap:8px">
@@ -166,7 +167,7 @@ export async function renderProducts(container) {
           </div>
           ${(p.tags || []).length > 0 ? `
           <div style="display:flex;flex-wrap:wrap;gap:4px">
-            ${p.tags.map(t => `<span class="tag" style="font-size:10px;padding:2px 6px">${t}</span>`).join('')}
+            ${p.tags.map(t => `<span class="tag" style="font-size:10px;padding:2px 6px">${escapeHTML(t)}</span>`).join('')}
           </div>` : ''}
         </div>
         <div style="margin-top:10px;display:flex;gap:6px">
@@ -231,11 +232,11 @@ function showProductForm(product, onSave) {
   content.innerHTML = `
     <div class="form-group">
       <label class="form-label">Nome *</label>
-      <input class="form-input" id="pf-name" value="${product?.name || ''}" placeholder="Nome do produto" />
+      <input class="form-input" id="pf-name" value="${escapeHTML(product?.name) || ''}" placeholder="Nome do produto" />
     </div>
     <div class="form-group">
       <label class="form-label">Descrição</label>
-      <textarea class="form-textarea" id="pf-desc" rows="3" placeholder="Descrição do produto">${product?.description || ''}</textarea>
+      <textarea class="form-textarea" id="pf-desc" rows="3" placeholder="Descrição do produto">${escapeHTML(product?.description) || ''}</textarea>
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -268,7 +269,7 @@ function showProductForm(product, onSave) {
     </div>
     <div class="form-group">
       <label class="form-label">Características (Tags separadas por vírgula)</label>
-      <input class="form-input" id="pf-tags" value="${(product?.tags || []).join(', ')}" placeholder="Ex: Liderança, Vendas, Corporate" />
+      <input class="form-input" id="pf-tags" value="${escapeHTML((product?.tags || []).join(', '))}" placeholder="Ex: Liderança, Vendas, Corporate" />
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -365,7 +366,7 @@ async function showDeleteProductConfirm(product, onDelete) {
 
   const content = document.createElement('div');
   content.innerHTML = `
-    <p>Tem certeza que deseja excluir o produto <strong>${product.name}</strong>?</p>
+    <p>Tem certeza que deseja excluir o produto <strong>${escapeHTML(product.name)}</strong>?</p>
     ${funnelCount > 0 ? `<p style="margin-top:10px;color:var(--accent-warning);font-size:var(--font-size-xs)"><span class="material-symbols-outlined" style="font-size:inherit;vertical-align:middle">warning</span> Este produto possui <strong>${funnelCount} funil(is)</strong> vinculado(s). Os funis associados também serão desvinculados.</p>` : ''}
     <p style="margin-top:8px;color:var(--accent-danger);font-size:var(--font-size-xs)">Esta ação não pode ser desfeita.</p>
   `;
@@ -548,7 +549,7 @@ async function showLeadDiscovery(product, allProducts) {
   content.innerHTML = `
     <div style="margin-bottom:16px">
       <p style="font-size:var(--font-size-sm);color:var(--text-secondary)">
-        Analisando contatos que consumiram ou demonstraram interesse em produtos com as características: <strong>${product.tags.join(', ')}</strong>
+        Analisando contatos que consumiram ou demonstraram interesse em produtos com as características: <strong>${escapeHTML(product.tags.join(', '))}</strong>
       </p>
       <div style="display:flex;gap:12px;margin-top:8px;flex-wrap:wrap">
         <span style="font-size:10px;color:var(--text-muted)"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#10b981;margin-right:4px"></span>Comprou produto relacionado</span>
@@ -575,21 +576,21 @@ async function showLeadDiscovery(product, allProducts) {
             ${potentialLeads.map(l => `
               <tr data-contact-id="${l.contact.id}">
                 <td>
-                  <div style="font-weight:600">${l.contact.name}</div>
-                  <div style="font-size:10px;color:var(--text-muted)">${l.contact.company || ''}</div>
+                  <div style="font-weight:600">${escapeHTML(l.contact.name)}</div>
+                  <div style="font-size:10px;color:var(--text-muted)">${escapeHTML(l.contact.company) || ''}</div>
                 </td>
                 <td>
                   <div style="display:flex;gap:4px;flex-wrap:wrap">
                     ${l.reasons.map(r => {
-                      if (r.type === 'compra') return `<span class="badge" title="Comprou: ${r.name}" style="background:#10b98122;color:#10b981;font-size:9px">✓ ${r.name}</span>`;
-                      if (r.type === 'funil') return `<span class="badge" title="Etapa '${r.stageName}' em: ${r.name}" style="background:#8b5cf622;color:#8b5cf6;font-size:9px">⟳ ${r.name} (${r.stageName})</span>`;
-                      return r.matchingTags.map(t => `<span class="badge" title="Tag do contato: ${t}" style="background:#f59e0b22;color:#f59e0b;font-size:9px">⚑ ${t}</span>`).join('');
+                      if (r.type === 'compra') return `<span class="badge" title="Comprou: ${escapeHTML(r.name)}" style="background:#10b98122;color:#10b981;font-size:9px">✓ ${escapeHTML(r.name)}</span>`;
+                      if (r.type === 'funil') return `<span class="badge" title="Etapa '${escapeHTML(r.stageName)}' em: ${escapeHTML(r.name)}" style="background:#8b5cf622;color:#8b5cf6;font-size:9px">⟳ ${escapeHTML(r.name)} (${escapeHTML(r.stageName)})</span>`;
+                      return r.matchingTags.map(t => `<span class="badge" title="Tag do contato: ${escapeHTML(t)}" style="background:#f59e0b22;color:#f59e0b;font-size:9px">⚑ ${escapeHTML(t)}</span>`).join('');
                     }).join('')}
                   </div>
                 </td>
                 <td>
                   <div style="display:flex;gap:4px;align-items:center">
-                    ${productFunnel && leadStage ? `<button class="btn btn-primary btn-xs ld-add-funnel" data-contact-id="${l.contact.id}" data-contact-name="${l.contact.name}" title="Adicionar ao funil como Lead"><span class="material-symbols-outlined" style="font-size:14px">add_circle</span> Funil</button>` : ''}
+                    ${productFunnel && leadStage ? `<button class="btn btn-primary btn-xs ld-add-funnel" data-contact-id="${l.contact.id}" data-contact-name="${escapeHTML(l.contact.name)}" title="Adicionar ao funil como Lead"><span class="material-symbols-outlined" style="font-size:14px">add_circle</span> Funil</button>` : ''}
                     <button class="btn btn-secondary btn-xs" onclick="window.location.hash='#/contacts/${l.contact.id}'">Ver Perfil</button>
                   </div>
                 </td>

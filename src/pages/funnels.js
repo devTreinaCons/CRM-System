@@ -1,6 +1,7 @@
 import { supabase } from '../supabase.js';
 import { showToast } from '../components/toast.js';
 import { openModal, closeModal } from '../components/modal.js';
+import { escapeHTML } from '../utils/sanitize.js';
 
 const STANDARD_FUNNEL_STAGES = [
   { name: 'Lead',            position: 0, color: '#94a3b8' },
@@ -96,8 +97,8 @@ export async function renderFunnels(container) {
 
       <div class="filters-bar" id="funnel-chips-container" style="gap:8px;padding-top:12px;border-top:1px solid var(--border-color)">
         ${funnels.map((f, i) => `
-          <button class="filter-chip funnel-chip ${i === 0 ? 'active' : ''}" data-funnel-id="${f.id}" data-category="${f.products?.category || ''}">
-            <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle;">${f.products?.icon || 'inventory_2'}</span> ${f.products?.name || f.name}
+          <button class="filter-chip funnel-chip ${i === 0 ? 'active' : ''}" data-funnel-id="${f.id}" data-category="${escapeHTML(f.products?.category) || ''}">
+            <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle;">${escapeHTML(f.products?.icon) || 'inventory_2'}</span> ${escapeHTML(f.products?.name) || escapeHTML(f.name)}
           </button>
         `).join('')}
       </div>
@@ -140,8 +141,8 @@ export async function renderFunnels(container) {
       const stageContacts = (contactFunnels || []).filter(cf => cf.current_stage_id === stage.id);
       return `
             <div class="kanban-column" data-stage-id="${stage.id}">
-              <div class="kanban-column-header" style="--column-color: ${stage.color}">
-                <span class="kanban-column-title" style="color:${stage.color}">${stage.name}</span>
+              <div class="kanban-column-header" style="--column-color: ${escapeHTML(stage.color)}">
+                <span class="kanban-column-title" style="color:${escapeHTML(stage.color)}">${escapeHTML(stage.name)}</span>
                 <span class="kanban-column-count">${stageContacts.length}</span>
               </div>
               <div class="kanban-column-body" data-stage-id="${stage.id}">
@@ -158,15 +159,15 @@ export async function renderFunnels(container) {
                       <div style="display:flex;align-items:center;gap:8px">
                         ${isCompany ?
             `<div class="avatar avatar-sm" style="background:var(--bg-card);border:1px solid var(--border-color);width:28px;height:28px;color:var(--text-main)"><span class="material-symbols-outlined" style="font-size:16px">business</span></div>` :
-            `<div class="avatar avatar-sm" style="background:${avatarColor};width:28px;height:28px;font-size:11px">${initials}</div>`
+            `<div class="avatar avatar-sm" style="background:${escapeHTML(avatarColor)};width:28px;height:28px;font-size:11px">${escapeHTML(initials)}</div>`
           }
-                        <div class="kanban-card-name">${name || 'Interesse'}</div>
+                        <div class="kanban-card-name">${escapeHTML(name) || 'Interesse'}</div>
                       </div>
                       <button class="btn btn-ghost btn-xs btn-remove-kanban" data-cf-id="${cf.id}" title="Remover do funil" style="padding:2px; height:auto; min-height:auto; margin-top:-2px">
                         <span class="material-symbols-outlined" style="font-size:16px; color:var(--text-muted)">delete</span>
                       </button>
                     </div>
-                    ${!isCompany && cf.contacts?.company ? `<div class="kanban-card-company"><span class="material-symbols-outlined" style="font-size: inherit; vertical-align: middle;">business</span> ${cf.contacts.company}</div>` : ''}
+                    ${!isCompany && cf.contacts?.company ? `<div class="kanban-card-company"><span class="material-symbols-outlined" style="font-size: inherit; vertical-align: middle;">business</span> ${escapeHTML(cf.contacts.company)}</div>` : ''}
                     <div class="kanban-card-footer">
                       <span class="kanban-card-time"><span class="material-symbols-outlined" style="font-size: inherit; vertical-align: middle;">calendar_month</span> ${timeSince(cf.updated_at || cf.entered_at)}</span>
                       ${!isCompany && taskCountMap[cf.contact_id] ? `<span class="kanban-card-tasks"><span class="material-symbols-outlined" style="font-size: inherit; vertical-align: middle;">assignment</span> ${taskCountMap[cf.contact_id]}</span>` : ''}
@@ -336,8 +337,8 @@ export async function renderFunnels(container) {
         <select class="form-select" id="atf-contact">
           <option value="">Selecione um contato</option>
           ${(allContacts || []).map(c => `
-            <option value="${c.id}" data-companies='${JSON.stringify(c.contact_companies || [])}'>
-              ${c.name} ${(c.contact_companies || []).map(cc => `[${cc.companies?.name}]`).join(' ')}
+            <option value="${c.id}" data-companies='${escapeHTML(JSON.stringify(c.contact_companies || []))}'>
+              ${escapeHTML(c.name)} ${(c.contact_companies || []).map(cc => `[${escapeHTML(cc.companies?.name)}]`).join(' ')}
             </option>
           `).join('')}
         </select>
@@ -352,13 +353,13 @@ export async function renderFunnels(container) {
         <label class="form-label">Empresa</label>
         <select class="form-select" id="atf-company">
           <option value="">Selecione uma empresa</option>
-          ${(allCompanies || []).map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+          ${(allCompanies || []).map(c => `<option value="${c.id}">${escapeHTML(c.name)}</option>`).join('')}
         </select>
       </div>
       <div class="form-group">
         <label class="form-label">Etapa inicial</label>
         <select class="form-select" id="atf-stage">
-          ${(allStages || []).map(s => `<option value="${s.id}">${s.name}</option>`).join('')}
+          ${(allStages || []).map(s => `<option value="${s.id}">${escapeHTML(s.name)}</option>`).join('')}
         </select>
       </div>
     `;
@@ -390,7 +391,7 @@ export async function renderFunnels(container) {
       if (contact && contact.contact_companies && contact.contact_companies.length > 0) {
         companyGroup.style.display = 'block';
         companySelect.innerHTML = contact.contact_companies.map(cc =>
-          `<option value="${cc.companies.id}">${cc.companies.name}</option>`
+          `<option value="${cc.companies.id}">${escapeHTML(cc.companies.name)}</option>`
         ).join('');
       } else {
         companyGroup.style.display = 'none';

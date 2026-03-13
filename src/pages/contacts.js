@@ -1,6 +1,7 @@
 import { supabase } from '../supabase.js';
 import { openModal, closeModal } from '../components/modal.js';
 import { showToast } from '../components/toast.js';
+import { escapeHTML } from '../utils/sanitize.js';
 
 export async function renderContacts(container, params) {
   // Check if we should show detail view
@@ -134,26 +135,26 @@ export async function renderContacts(container, params) {
       <tr onclick="window.location.hash='#/contacts/${c.id}'" style="cursor:pointer">
         <td>
           <div style="display:flex;align-items:center;gap:10px">
-            <div class="avatar avatar-sm" style="background:${c.avatar_color || '#6366f1'}">${getInitials(c.name)}</div>
+            <div class="avatar avatar-sm" style="background:${escapeHTML(c.avatar_color) || '#6366f1'}">${escapeHTML(getInitials(c.name))}</div>
             <div>
-              <div style="font-weight:600">${c.name}</div>
-              <div style="font-size:var(--font-size-xs); color:var(--text-muted)">${c.email || ''}</div>
+              <div style="font-weight:600">${escapeHTML(c.name)}</div>
+              <div style="font-size:var(--font-size-xs); color:var(--text-muted)">${escapeHTML(c.email) || ''}</div>
             </div>
           </div>
         </td>
         <td>
           ${(c.contact_companies || []).length > 0
-        ? c.contact_companies.map(cc => cc.companies?.name).filter(Boolean).join(', ')
-        : (c.company || '—')}
+        ? escapeHTML(c.contact_companies.map(cc => cc.companies?.name).filter(Boolean).join(', '))
+        : escapeHTML(c.company || '—')}
         </td>
-        <td>${formatPhone(c.phone) || '—'}</td>
-        <td><span class="badge badge-neutral">${c.source || '—'}</span></td>
+        <td>${escapeHTML(formatPhone(c.phone)) || '—'}</td>
+        <td><span class="badge badge-neutral">${escapeHTML(c.source) || '—'}</span></td>
         <td>
           ${(c.contact_funnel || []).map(cf =>
-          `<span class="badge ${cf.status === 'won' ? 'badge-success' : cf.status === 'lost' ? 'badge-danger' : 'badge-primary'}" style="margin:1px">${cf.funnels?.name?.replace('Funil - ', '') || ''}</span>`
+          `<span class="badge ${cf.status === 'won' ? 'badge-success' : cf.status === 'lost' ? 'badge-danger' : 'badge-primary'}" style="margin:1px">${escapeHTML(cf.funnels?.name?.replace('Funil - ', '')) || ''}</span>`
         ).join('')}
         </td>
-        <td>${(c.tags || []).map(t => `<span class="tag">${t}</span>`).join('')}</td>
+        <td>${(c.tags || []).map(t => `<span class="tag">${escapeHTML(t)}</span>`).join('')}</td>
       </tr>
     `).join('');
   }
@@ -306,21 +307,21 @@ export async function renderContactDetail(container, contactId) {
       <div class="contact-detail-grid">
         <div class="contact-sidebar">
           <div class="card contact-profile-card">
-            <div class="avatar avatar-lg" style="background:${contact.avatar_color || '#6366f1'}">${getInitials(contact.name)}</div>
-            <div class="contact-profile-name">${contact.name}</div>
+            <div class="avatar avatar-lg" style="background:${escapeHTML(contact.avatar_color) || '#6366f1'}">${escapeHTML(getInitials(contact.name))}</div>
+            <div class="contact-profile-name">${escapeHTML(contact.name)}</div>
             <div class="contact-profile-company">
               ${contactCompanies.length > 0
-      ? contactCompanies.map(cc => `<a href="#/companies/${cc.companies.id}">${cc.companies.name}</a>`).join(', ')
-      : (contact.company || '')}
+      ? contactCompanies.map(cc => `<a href="#/companies/${cc.companies.id}">${escapeHTML(cc.companies.name)}</a>`).join(', ')
+      : escapeHTML(contact.company || '')}
             </div>
-            <div class="contact-profile-position">${contact.position || ''}</div>
+            <div class="contact-profile-position">${escapeHTML(contact.position) || ''}</div>
           </div>
           <div class="card">
             <h4 class="card-title" style="margin-bottom:12px"><span class="material-symbols-outlined" style="font-size: inherit; vertical-align: middle;">push_pin</span> Informações</h4>
             <ul class="contact-info-list">
-              ${contact.email ? `<li class="contact-info-item"><span class="info-icon"><span class="material-symbols-outlined" style="font-size: inherit; vertical-align: middle;">mail</span></span>${contact.email}</li>` : ''}
-              ${contact.phone ? `<li class="contact-info-item"><span class="info-icon"><span class="material-symbols-outlined" style="font-size: inherit; vertical-align: middle;">smartphone</span></span>${formatPhone(contact.phone)}</li>` : ''}
-              ${contact.cpf ? `<li class="contact-info-item"><span class="info-icon"><span class="material-symbols-outlined" style="font-size: inherit; vertical-align: middle;">badge</span></span>CPF: ${formatCpf(contact.cpf)}</li>` : ''}
+              ${contact.email ? `<li class="contact-info-item"><span class="info-icon"><span class="material-symbols-outlined" style="font-size: inherit; vertical-align: middle;">mail</span></span>${escapeHTML(contact.email)}</li>` : ''}
+              ${contact.phone ? `<li class="contact-info-item"><span class="info-icon"><span class="material-symbols-outlined" style="font-size: inherit; vertical-align: middle;">smartphone</span></span>${escapeHTML(formatPhone(contact.phone))}</li>` : ''}
+              ${contact.cpf ? `<li class="contact-info-item"><span class="info-icon"><span class="material-symbols-outlined" style="font-size: inherit; vertical-align: middle;">badge</span></span>CPF: ${escapeHTML(formatCpf(contact.cpf))}</li>` : ''}
               ${contactCompanies.length > 0 ? contactCompanies.map(cc => `
                 <li class="contact-info-item">
                   <span class="info-icon"><span class="material-symbols-outlined" style="font-size: inherit; vertical-align: middle;">business</span></span>
